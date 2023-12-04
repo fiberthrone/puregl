@@ -9,6 +9,21 @@ void error_callback(int error, const char *description)
     fprintf(stderr, "Error: %s\n", description);
 }
 
+void generate_test_image(unsigned char *image, int width, int height)
+{
+    int x, y;
+    for (y = 0; y < height; y++)
+    {
+        unsigned char *row = &image[y * width * 3];
+        for (x = 0; x < width; x++)
+        {
+            row[x * 3 + 0] = 255 * x / (width - 1);
+            row[x * 3 + 1] = 255 * y / (height - 1);
+            row[x * 3 + 2] = 255;
+        }
+    }
+}
+
 int main()
 {
     GLFWwindow *window;
@@ -39,12 +54,26 @@ int main()
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     glfwSwapInterval(1);
 
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    unsigned char test_image[640 * 480 * 3];
+    generate_test_image(test_image, 640, 480);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, test_image);
+
     const char *vertex_shader_source =
         "#version 330 core\n"
-        "layout (location = 0) in vec3 pos;\n"
+        "layout (location = 0) in vec3 a_pos;\n"
+        "layout (location = 1) in vec2 a_tex_coord;\n"
+        "out vec2 tex_coord;\n"
         "void main()\n"
         "{\n"
-        "   gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);\n"
+        "   gl_Position = vec4(a_pos, 1.0);\n"
+        "   tex_coord = a_tex_coord;\n"
         "}";
 
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
@@ -64,9 +93,11 @@ int main()
     const char *fragment_shader_source =
         "#version 330 core\n"
         "out vec4 FragColor;\n"
+        "in vec2 tex_coord;\n"
+        "uniform sampler2D u_texture;\n"
         "void main()\n"
         "{\n"
-        "   FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
+        "   FragColor = texture(u_texture, tex_coord);\n"
         "}";
 
     GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -100,20 +131,24 @@ int main()
     glDeleteShader(fragment_shader);
 
     glUseProgram(shader_program);
+    glUniform1i(glGetUniformLocation(shader_program, "u_texture"), 0);
 
-    float triangle_vertices[] = {
-        -0.5f, -0.5f, 0.0f,
-        0.5f, -0.5f, 0.0f,
-        0.0f, 0.5f, 0.0f};
+    float quad_vertices[] = {
+        -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+        -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f, 1.0f, 1.0f};
 
-    GLuint triangle_vao, triangle_vbo;
-    glGenVertexArrays(1, &triangle_vao);
-    glGenBuffers(1, &triangle_vbo);
-    glBindVertexArray(triangle_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, triangle_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    GLuint quad_vao, quad_vbo;
+    glGenVertexArrays(1, &quad_vao);
+    glGenBuffers(1, &quad_vbo);
+    glBindVertexArray(quad_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     glViewport(0, 0, 640, 480);
 
@@ -122,7 +157,10 @@ int main()
     {
         glClearColor(1.0f, 0.5f, 0.5f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glfwSwapBuffers(window);
 
@@ -130,8 +168,8 @@ int main()
         glfwPollEvents();
     }
 
-    glDeleteVertexArrays(1, &triangle_vao);
-    glDeleteBuffers(1, &triangle_vbo);
+    glDeleteVertexArrays(1, &quad_vao);
+    glDeleteBuffers(1, &quad_vbo);
     glDeleteProgram(shader_program);
 
     glfwDestroyWindow(window);
