@@ -14,7 +14,8 @@ if(NOT WIN32)
 endif()
 
 include_directories(src/third_party/glfw/include/
-                    src/third_party/glad/include/)
+                    src/third_party/glad/include/
+                    src/third_party/cglm/include/)
 
 add_executable(puregl src/puregl.c src/third_party/glad/src/glad.c)
 

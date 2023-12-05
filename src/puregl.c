@@ -1,27 +1,185 @@
+#include "scene.h"
+#include "imaging.h"
+
 #define GLFW_INCLUDE_NONE
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <cglm/cglm.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <math.h>
+
+float sdf_sphere(vec3 p, float radius)
+{
+    return glm_vec3_norm(p) - radius;
+}
+
+typedef struct
+{
+    sphere_t *object;
+    vec3 position;
+} hit_t;
+
+hit_t make_hit(sphere_t *object, vec3 position)
+{
+    hit_t hit = (hit_t){.object = object};
+    glm_vec3_copy(position, hit.position);
+    return hit;
+}
+
+void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3 camera_position, vec3 light_color, vec3 color_dst)
+{
+    vec3 light_direction;
+    glm_vec3_sub(light_position, hit_position, light_direction);
+    glm_vec3_normalize(light_direction);
+
+    float diffuse_intensity = glm_max(glm_vec3_dot(normal, light_direction), 0.0f);
+    vec3 diffuse;
+    glm_vec3_scale(light_color, 1.0f * diffuse_intensity, diffuse);
+
+    vec3 view_direction;
+    glm_vec3_sub(camera_position, hit_position, view_direction);
+    glm_vec3_normalize(view_direction);
+
+    vec3 halfway_direction;
+    glm_vec3_add(light_direction, view_direction, halfway_direction);
+    glm_vec3_normalize(halfway_direction);
+
+    float specular_intensity = powf(glm_max(glm_vec3_dot(normal, halfway_direction), 0.0f), 128.0f);
+    vec3 specular;
+    glm_vec3_scale(light_color, 0.3f * specular_intensity, specular);
+
+    glm_vec3_add(diffuse, specular, color_dst);
+}
+
+hit_t cast_ray(vec3 origin, vec3 direction, scene_t *scene)
+{
+    float t = 0.0f;
+    for (int i = 0; i < 100; i++)
+    {
+        vec3 ray_position;
+        glm_vec3_scale(direction, t, ray_position);
+        glm_vec3_add(origin, ray_position, ray_position);
+
+        float min_distance = INFINITY;
+        for (int i = 0; i < scene->sphere_count; i++)
+        {
+            sphere_t *sphere = &scene->spheres[i];
+
+            vec3 ray_position_model_space;
+            glm_vec3_sub(ray_position, sphere->center, ray_position_model_space);
+
+            float d = sdf_sphere(ray_position_model_space, sphere->radius);
+            if (d < 0.001f)
+            {
+                return make_hit(sphere, ray_position);
+            }
+
+            if (d < min_distance)
+            {
+                min_distance = d;
+            }
+        }
+        t += min_distance;
+    }
+
+    return (hit_t){.object = NULL};
+}
+
+void render_scene(scene_t *scene, unsigned char *image)
+{
+    int width = 640, height = 480;
+    float pixel_size = 2.0f / glm_max(width, height);
+    vec3 light_color = {1.0f, 1.0f, 1.0f};
+    vec3 light_position = {1.0f, 1.0f, -1.0f};
+    vec3 camera_position = {0.0f, 0.0f, -1.0f};
+
+    for (int x = 0; x < width; x++)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            vec3 pixel_center = {
+                pixel_size * (0.5f + x - width / 2),
+                pixel_size * (0.5f + y - height / 2),
+                0.0f};
+
+            vec3 ray_direction;
+            glm_vec3_sub(pixel_center, camera_position, ray_direction);
+            glm_vec3_normalize(ray_direction);
+
+            hit_t hit = cast_ray(pixel_center, ray_direction, scene);
+            if (hit.object != NULL)
+            {
+                vec3 *sphere_center = &hit.object->center;
+                vec3 *hit_position = &hit.position;
+
+                vec3 hit_position_model_space;
+                glm_vec3_sub(*hit_position, *sphere_center, hit_position_model_space);
+
+                vec3 camera_position_model_space;
+                glm_vec3_sub(camera_position, *sphere_center, camera_position_model_space);
+
+                // FIXME: works only for spheres
+                vec3 normal;
+                glm_vec3_copy(hit_position_model_space, normal);
+                glm_vec3_normalize(normal);
+
+                vec3 light_position_model_space;
+                glm_vec3_sub(light_position, *sphere_center, light_position_model_space);
+
+                vec3 color;
+                blinn_phong_shade(
+                    hit_position_model_space, normal,
+                    light_position_model_space,
+                    camera_position_model_space,
+                    light_color,
+                    color);
+
+                set_pixel(image, x, y, color);
+            }
+            else
+            {
+                set_pixel(image, x, y, (vec3){1.0f, 1.0f, 1.0f});
+            }
+        }
+    }
+}
+
+void scene_init(scene_t *scene)
+{
+    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, -1.0, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, -0.6, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, -0.2, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, 0.2, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, 0.6, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, 1.0, 0.5f}, .radius = 0.2f});
+
+    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, -1.0, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, -0.6, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, -0.2, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, 0.2, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, 0.6, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, 1.0, 0.5f}, .radius = 0.2f});
+
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -1.0, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -0.6, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -0.2, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 0.2, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 0.6, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 1.0, 0.5f}, .radius = 0.2f});
+
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -1.0, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -0.6, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -0.2, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 0.2, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 0.6, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 1.0, 0.5f}, .radius = 0.2f});
+}
 
 void error_callback(int error, const char *description)
 {
     fprintf(stderr, "Error: %s\n", description);
-}
-
-void generate_test_image(unsigned char *image, int width, int height)
-{
-    int x, y;
-    for (y = 0; y < height; y++)
-    {
-        unsigned char *row = &image[y * width * 3];
-        for (x = 0; x < width; x++)
-        {
-            row[x * 3 + 0] = 255 * x / (width - 1);
-            row[x * 3 + 1] = 255 * y / (height - 1);
-            row[x * 3 + 2] = 255;
-        }
-    }
 }
 
 int main()
@@ -61,8 +219,16 @@ int main()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
     unsigned char test_image[640 * 480 * 3];
-    generate_test_image(test_image, 640, 480);
+    scene_t scene;
+    scene_init(&scene);
+
+    clock_t start = clock();
+    render_scene(&scene, test_image);
+    clock_t end = clock();
+    printf("Rendering time: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
+
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, test_image);
 
     const char *vertex_shader_source =
@@ -155,7 +321,7 @@ int main()
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
-        glClearColor(1.0f, 0.5f, 0.5f, 1.0f);
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         glActiveTexture(GL_TEXTURE0);
