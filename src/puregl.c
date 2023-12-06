@@ -10,6 +10,8 @@
 #include <time.h>
 #include <math.h>
 
+#define Z_FAR 1.0f
+
 float sdf_sphere(vec3 p, float radius)
 {
     return glm_vec3_norm(p) - radius;
@@ -61,6 +63,11 @@ hit_t cast_ray(vec3 origin, vec3 direction, scene_t *scene)
         vec3 ray_position;
         glm_vec3_scale(direction, t, ray_position);
         glm_vec3_add(origin, ray_position, ray_position);
+
+        if (ray_position[2] > Z_FAR)
+        {
+            break;
+        }
 
         float min_distance = INFINITY;
         for (int i = 0; i < scene->sphere_count; i++)
