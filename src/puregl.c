@@ -17,13 +17,47 @@ float sdf_sphere(vec3 p, float radius)
     return glm_vec3_norm(p) - radius;
 }
 
+float sdf_plane(vec3 p, vec3 n, float h)
+{
+    return glm_vec3_dot(p, n) + h;
+}
+
+float sdf(vec3 p, object_t *object)
+{
+    switch (object->type)
+    {
+    case OBJECT_TYPE_SPHERE:
+        return sdf_sphere(p, object->radius);
+    case OBJECT_TYPE_PLANE:
+        return sdf_plane(p, object->normal, 0.0f);
+    default:
+        return INFINITY;
+    }
+}
+
+void get_object_normal(object_t *object, vec3 p, vec3 normal_dst)
+{
+    switch (object->type)
+    {
+    case OBJECT_TYPE_SPHERE:
+        glm_vec3_copy(p, normal_dst);
+        glm_vec3_normalize(normal_dst);
+        break;
+    case OBJECT_TYPE_PLANE:
+        glm_vec3_copy(object->normal, normal_dst);
+        break;
+    default:
+        break;
+    }
+}
+
 typedef struct
 {
-    sphere_t *object;
+    object_t *object;
     vec3 position;
 } hit_t;
 
-hit_t make_hit(sphere_t *object, vec3 position)
+hit_t make_hit(object_t *object, vec3 position)
 {
     hit_t hit = (hit_t){.object = object};
     glm_vec3_copy(position, hit.position);
@@ -70,17 +104,17 @@ hit_t cast_ray(vec3 origin, vec3 direction, scene_t *scene)
         }
 
         float min_distance = INFINITY;
-        for (int i = 0; i < scene->sphere_count; i++)
+        for (int i = 0; i < scene->object_count; i++)
         {
-            sphere_t *sphere = &scene->spheres[i];
+            object_t *object = &scene->objects[i];
 
             vec3 ray_position_model_space;
-            glm_vec3_sub(ray_position, sphere->center, ray_position_model_space);
+            glm_vec3_sub(ray_position, object->position, ray_position_model_space);
 
-            float d = sdf_sphere(ray_position_model_space, sphere->radius);
+            float d = sdf(ray_position_model_space, object);
             if (d < 0.001f)
             {
-                return make_hit(sphere, ray_position);
+                return make_hit(object, ray_position);
             }
 
             if (d < min_distance)
@@ -118,22 +152,20 @@ void render_scene(scene_t *scene, unsigned char *image)
             hit_t hit = cast_ray(pixel_center, ray_direction, scene);
             if (hit.object != NULL)
             {
-                vec3 *sphere_center = &hit.object->center;
+                vec3 *object_position = &hit.object->position;
                 vec3 *hit_position = &hit.position;
 
                 vec3 hit_position_model_space;
-                glm_vec3_sub(*hit_position, *sphere_center, hit_position_model_space);
+                glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
 
                 vec3 camera_position_model_space;
-                glm_vec3_sub(camera_position, *sphere_center, camera_position_model_space);
+                glm_vec3_sub(camera_position, *object_position, camera_position_model_space);
 
-                // FIXME: works only for spheres
                 vec3 normal;
-                glm_vec3_copy(hit_position_model_space, normal);
-                glm_vec3_normalize(normal);
+                get_object_normal(hit.object, hit_position_model_space, normal);
 
                 vec3 light_position_model_space;
-                glm_vec3_sub(light_position, *sphere_center, light_position_model_space);
+                glm_vec3_sub(light_position, *object_position, light_position_model_space);
 
                 vec3 color;
                 blinn_phong_shade(
@@ -155,33 +187,35 @@ void render_scene(scene_t *scene, unsigned char *image)
 
 void scene_init(scene_t *scene)
 {
-    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, -1.0, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, -0.6, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, -0.2, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, 0.2, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, 0.6, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-1.0f, 1.0, 0.5f}, .radius = 0.2f});
+    scene_add_plane(scene, (vec3){0.0f, -1.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f});
 
-    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, -1.0, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, -0.6, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, -0.2, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, 0.2, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, 0.6, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.6f, 1.0, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (vec3){-1.0f, -1.0, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-1.0f, -0.6, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-1.0f, -0.2, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-1.0f, 0.2, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-1.0f, 0.6, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-1.0f, 1.0, 0.5f}, 0.2f);
 
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -1.0, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -0.6, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -0.2, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 0.2, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 0.6, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 1.0, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (vec3){-0.6f, -1.0, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.6f, -0.6, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.6f, -0.2, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.6f, 0.2, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.6f, 0.6, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.6f, 1.0, 0.5f}, 0.2f);
 
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -1.0, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -0.6, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, -0.2, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 0.2, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 0.6, 0.5f}, .radius = 0.2f});
-    scene_add_sphere(scene, (sphere_t){.center = {-0.2f, 1.0, 0.5f}, .radius = 0.2f});
+    scene_add_sphere(scene, (vec3){-0.2f, -1.0, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, -0.6, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, -0.2, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, 0.2, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, 0.6, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, 1.0, 0.5f}, 0.2f);
+
+    scene_add_sphere(scene, (vec3){-0.2f, -1.0, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, -0.6, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, -0.2, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, 0.2, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, 0.6, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, 1.0, 0.5f}, 0.2f);
 }
 
 void error_callback(int error, const char *description)
