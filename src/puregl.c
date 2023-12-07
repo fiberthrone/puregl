@@ -253,6 +253,10 @@ int main()
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     glfwSwapInterval(1);
 
+    int window_width;
+    int window_height;
+    glfwGetFramebufferSize(window, &window_width, &window_height);
+
     GLuint texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -357,7 +361,7 @@ int main()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    glViewport(0, 0, 640, 480);
+    glViewport(0, 0, window_width, window_height);
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
