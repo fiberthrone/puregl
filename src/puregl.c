@@ -137,8 +137,6 @@ void render_scene(scene_t *scene, unsigned char *image)
 {
     int width = 640, height = 480;
     float pixel_size = 2.0f / glm_max(width, height);
-    vec3 light_color = {1.0f, 1.0f, 1.0f};
-    vec3 light_position = {1.0f, 1.0f, -1.0f};
     vec3 camera_position = {0.0f, 0.0f, -1.0f};
 
     for (int x = 0; x < width; x++)
@@ -154,58 +152,65 @@ void render_scene(scene_t *scene, unsigned char *image)
             glm_vec3_sub(pixel_center, camera_position, ray_direction);
             glm_vec3_normalize(ray_direction);
 
+            vec3 color = {0.0f, 0.0f, 0.0f};
             hit_t hit = cast_ray(pixel_center, ray_direction, scene, INFINITY);
             if (hit.object != NULL)
             {
-                vec3 direction_to_light;
-                glm_vec3_sub(light_position, hit.position, direction_to_light);
-                float light_distance = glm_vec3_norm(direction_to_light);
-                glm_vec3_normalize(direction_to_light);
-
-                // FIXME: is this good?
-                vec3 light_ray_origin;
-                glm_vec3_scale(direction_to_light, 0.01f, light_ray_origin);
-                glm_vec3_add(hit.position, light_ray_origin, light_ray_origin);
-                hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
-
-                if (light_hit.object == NULL)
+                for (int i = 0; i < scene->light_count; i++)
                 {
-                    vec3 *object_position = &hit.object->position;
-                    vec3 *hit_position = &hit.position;
+                    light_t *light = &scene->lights[i];
 
-                    vec3 hit_position_model_space;
-                    glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
+                    vec3 direction_to_light;
+                    glm_vec3_sub(light->position, hit.position, direction_to_light);
+                    float light_distance = glm_vec3_norm(direction_to_light);
+                    glm_vec3_normalize(direction_to_light);
 
-                    vec3 camera_position_model_space;
-                    glm_vec3_sub(camera_position, *object_position, camera_position_model_space);
+                    // FIXME: is this good?
+                    vec3 light_ray_origin;
+                    glm_vec3_scale(direction_to_light, 0.01f, light_ray_origin);
+                    glm_vec3_add(hit.position, light_ray_origin, light_ray_origin);
+                    hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
 
-                    vec3 normal;
-                    get_object_normal(hit.object, hit_position_model_space, normal);
+                    if (light_hit.object == NULL)
+                    {
+                        vec3 *object_position = &hit.object->position;
+                        vec3 *hit_position = &hit.position;
 
-                    vec3 light_position_model_space;
-                    glm_vec3_sub(light_position, *object_position, light_position_model_space);
+                        vec3 hit_position_model_space;
+                        glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
 
-                    vec3 color;
-                    blinn_phong_shade(
-                        hit_position_model_space, normal,
-                        light_position_model_space,
-                        camera_position_model_space,
-                        light_color,
-                        color);
+                        vec3 camera_position_model_space;
+                        glm_vec3_sub(camera_position, *object_position, camera_position_model_space);
 
-                    set_pixel(image, x, y, color);
+                        vec3 normal;
+                        get_object_normal(hit.object, hit_position_model_space, normal);
+
+                        vec3 light_position_model_space;
+                        glm_vec3_sub(light->position, *object_position, light_position_model_space);
+
+                        vec3 color_component;
+                        blinn_phong_shade(
+                            hit_position_model_space, normal,
+                            light_position_model_space,
+                            camera_position_model_space,
+                            light->color,
+                            color_component);
+
+                        glm_vec3_add(color, color_component, color);
+                    }
                 }
-
-                continue;
             }
 
-            set_pixel(image, x, y, (vec3){1.0f, 1.0f, 1.0f});
+            set_pixel(image, x, y, color);
         }
     }
 }
 
 void scene_init(scene_t *scene)
 {
+    scene_add_light(scene, (vec3){1.0f, 1.0f, -1.0f}, (vec3){1.0f, 0.5f, 0.5f}, 1.0f);
+    scene_add_light(scene, (vec3){-1.0f, 1.0f, -1.0f}, (vec3){0.5f, 0.5f, 1.0f}, 1.0f);
+
     scene_add_plane(scene, (vec3){0.0f, -1.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f});
 
     scene_add_sphere(scene, (vec3){-1.0f, -1.0, 0.5f}, 0.2f);

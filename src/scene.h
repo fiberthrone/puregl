@@ -1,6 +1,7 @@
 #include <cglm/cglm.h>
 
 #define MAX_OBJECT_COUNT 512
+#define MAX_LIGHT_COUNT 512
 
 typedef enum
 {
@@ -18,8 +19,17 @@ typedef struct
 
 typedef struct
 {
+    vec3 position;
+    vec3 color;
+    float intensity;
+} light_t;
+
+typedef struct
+{
     int object_count;
     object_t objects[MAX_OBJECT_COUNT];
+    int light_count;
+    light_t lights[MAX_LIGHT_COUNT];
 } scene_t;
 
 void scene_add_object(scene_t *scene, object_t object)
@@ -54,4 +64,14 @@ void scene_add_plane(scene_t *scene, vec3 position, vec3 normal)
     object_t plane;
     make_plane(&plane, position, normal);
     scene_add_object(scene, plane);
+}
+
+void scene_add_light(scene_t *scene, vec3 position, vec3 color, float intensity)
+{
+    light_t light;
+    glm_vec3_copy(position, light.position);
+    glm_vec3_copy(color, light.color);
+    light.intensity = intensity;
+    scene->lights[scene->light_count] = light;
+    scene->light_count++;
 }
