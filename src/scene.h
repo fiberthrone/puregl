@@ -75,3 +75,25 @@ void scene_add_light(scene_t *scene, vec3 position, vec3 color, float intensity)
     scene->lights[scene->light_count] = light;
     scene->light_count++;
 }
+
+// TODO: Apply perspective division
+void scene_transform(scene_t *scene, mat4 transform, scene_t *scene_dst)
+{
+    if (scene != scene_dst)
+    {
+        *scene_dst = *scene;
+    }
+
+    for (int i = 0; i < scene_dst->object_count; i++)
+    {
+        object_t *object = &scene_dst->objects[i];
+        glm_mat4_mulv3(transform, object->position, 1.0f, object->position);
+        glm_mat4_mulv3(transform, object->normal, 0.0f, object->normal);
+    }
+
+    for (int i = 0; i < scene_dst->light_count; i++)
+    {
+        light_t *light = &scene_dst->lights[i];
+        glm_mat4_mulv3(transform, light->position, 1.0f, light->position);
+    }
+}

@@ -1,5 +1,6 @@
 #include "scene.h"
 #include "imaging.h"
+#include "math.h"
 
 #define GLFW_INCLUDE_NONE
 #include <glad/glad.h>
@@ -10,17 +11,8 @@
 #include <time.h>
 #include <math.h>
 
-#define Z_FAR 1.0f
-
-float sdf_sphere(vec3 p, float radius)
-{
-    return glm_vec3_norm(p) - radius;
-}
-
-float sdf_plane(vec3 p, vec3 n, float h)
-{
-    return glm_vec3_dot(p, n) + h;
-}
+#define Z_NEAR 0.1f
+#define Z_FAR 100.0f
 
 float sdf(vec3 p, object_t *object)
 {
@@ -136,29 +128,50 @@ hit_t cast_ray(vec3 origin, vec3 direction, scene_t *scene, float max_distance)
 void render_scene(scene_t *scene, unsigned char *image)
 {
     int width = 640, height = 480;
-    float pixel_size = 2.0f / glm_max(width, height);
-    vec3 camera_position = {0.0f, 0.0f, -1.0f};
+    vec3 camera_position_world_space = {0.0f, 0.0f, -2.0f};
+    mat4 projection;
+    glm_perspective(45.0f, (float)width / (float)height, Z_NEAR, Z_FAR, projection);
+    mat4 view;
+    glm_lookat(camera_position_world_space, (vec3){0.0f, 0.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f}, view);
+    mat4 projection_view;
+    glm_mat4_mul(projection, view, projection_view);
+
+    mat4 projection_inv = {0.0f};
+    glm_mat4_inv(projection, projection_inv);
+    mat4 view_inv = {0.0f};
+    glm_mat4_inv(view, view_inv);
+
+    scene_t scene_view_space;
+    scene_transform(scene, view, &scene_view_space);
+
+    vec3 camera_position_view_space;
+    glm_mat4_mulv3(view, camera_position_world_space, 1.0f, camera_position_view_space);
 
     for (int x = 0; x < width; x++)
     {
         for (int y = 0; y < height; y++)
         {
-            vec3 pixel_center = {
-                pixel_size * (0.5f + x - width / 2),
-                pixel_size * (0.5f + y - height / 2),
-                0.0f};
+            vec4 pixel_center_clip_space;
+            viewport_transform_inverse((vec2){0.5f + x, 0.5f + y}, (vec2){width, height}, pixel_center_clip_space);
+            pixel_center_clip_space[2] = -1.0f;
+            pixel_center_clip_space[3] = 1.0f;
+            vec4 pixel_center_view_space;
+            glm_mat4_mulv(projection_inv, pixel_center_clip_space, pixel_center_view_space);
+            perspective_division(pixel_center_view_space, pixel_center_view_space);
 
-            vec3 ray_direction;
-            glm_vec3_sub(pixel_center, camera_position, ray_direction);
-            glm_vec3_normalize(ray_direction);
+            vec4 ray_direction_view_space;
+            glm_vec4_copy(pixel_center_view_space, ray_direction_view_space);
+            // Setting w to 0 prevents translation, so it behaves like a direction vector
+            ray_direction_view_space[3] = 0.0f;
+            glm_vec4_normalize(ray_direction_view_space);
 
             vec3 color = {0.0f, 0.0f, 0.0f};
-            hit_t hit = cast_ray(pixel_center, ray_direction, scene, INFINITY);
+            hit_t hit = cast_ray(pixel_center_view_space, ray_direction_view_space, &scene_view_space, INFINITY);
             if (hit.object != NULL)
             {
-                for (int i = 0; i < scene->light_count; i++)
+                for (int i = 0; i < scene_view_space.light_count; i++)
                 {
-                    light_t *light = &scene->lights[i];
+                    light_t *light = &scene_view_space.lights[i];
 
                     vec3 direction_to_light;
                     glm_vec3_sub(light->position, hit.position, direction_to_light);
@@ -169,7 +182,7 @@ void render_scene(scene_t *scene, unsigned char *image)
                     vec3 light_ray_origin;
                     glm_vec3_scale(direction_to_light, 0.01f, light_ray_origin);
                     glm_vec3_add(hit.position, light_ray_origin, light_ray_origin);
-                    hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
+                    hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, &scene_view_space, light_distance);
 
                     if (light_hit.object == NULL)
                     {
@@ -180,17 +193,17 @@ void render_scene(scene_t *scene, unsigned char *image)
                         glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
 
                         vec3 camera_position_model_space;
-                        glm_vec3_sub(camera_position, *object_position, camera_position_model_space);
+                        glm_vec3_sub(camera_position_view_space, *object_position, camera_position_model_space);
 
                         vec3 normal;
                         get_object_normal(hit.object, hit_position_model_space, normal);
 
                         vec3 light_position_model_space;
                         glm_vec3_sub(light->position, *object_position, light_position_model_space);
-
                         vec3 color_component;
                         blinn_phong_shade(
-                            hit_position_model_space, normal,
+                            hit_position_model_space,
+                            normal,
                             light_position_model_space,
                             camera_position_model_space,
                             light->color,
@@ -200,7 +213,6 @@ void render_scene(scene_t *scene, unsigned char *image)
                     }
                 }
             }
-
             set_pixel(image, x, y, color);
         }
     }
@@ -208,8 +220,8 @@ void render_scene(scene_t *scene, unsigned char *image)
 
 void scene_init(scene_t *scene)
 {
-    scene_add_light(scene, (vec3){1.0f, 1.0f, -1.0f}, (vec3){1.0f, 0.5f, 0.5f}, 1.0f);
-    scene_add_light(scene, (vec3){-1.0f, 1.0f, -1.0f}, (vec3){0.5f, 0.5f, 1.0f}, 1.0f);
+    scene_add_light(scene, (vec3){-5.0f, 5.0f, 0.0f}, (vec3){1.0f, 0.5f, 0.5f}, 1.0f);
+    scene_add_light(scene, (vec3){5.0f, 5.0f, 0.0f}, (vec3){0.5f, 0.5f, 1.0f}, 1.0f);
 
     scene_add_plane(scene, (vec3){0.0f, -1.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f});
 
