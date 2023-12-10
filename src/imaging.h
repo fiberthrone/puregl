@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cglm/cglm.h>
 
 void generate_test_image(unsigned char *image, int width, int height)

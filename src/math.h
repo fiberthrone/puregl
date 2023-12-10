@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cglm/cglm.h>
 
 float sdf_sphere(vec3 p, float radius)
