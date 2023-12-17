@@ -137,9 +137,6 @@ int main()
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
-        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
         renderer_current->render(renderer_current, &scene);
 
         glfwSwapBuffers(window);

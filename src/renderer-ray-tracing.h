@@ -3,6 +3,7 @@
 #include "renderer.h"
 #include "scene.h"
 #include "imaging.h"
+#include "gl-utils.h"
 #include "math.h"
 
 #define GLFW_INCLUDE_NONE
@@ -235,6 +236,10 @@ void renderer_ray_tracing_create(renderer_t *renderer)
 {
     renderer_ray_tracing_t *renderer_ray_tracing = (renderer_ray_tracing_t *)renderer;
 
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glDisable(GL_DEPTH_TEST);
+    glClear(GL_COLOR_BUFFER_BIT);
+
     glGenTextures(1, &renderer_ray_tracing->texture);
     glBindTexture(GL_TEXTURE_2D, renderer_ray_tracing->texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -249,23 +254,9 @@ void renderer_ray_tracing_create(renderer_t *renderer)
         "out vec2 tex_coord;\n"
         "void main()\n"
         "{\n"
-        "   gl_Position = vec4(a_pos, 1.0);\n"
-        "   tex_coord = a_tex_coord;\n"
+        "    gl_Position = vec4(a_pos, 1.0);\n"
+        "    tex_coord = a_tex_coord;\n"
         "}";
-
-    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL);
-    glCompileShader(vertex_shader);
-
-    GLint success;
-    glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
-        GLchar infoLog[512];
-        glGetShaderInfoLog(vertex_shader, 512, NULL, infoLog);
-        fprintf(stderr, "Vertex shader compilation error: %s\n", infoLog);
-        exit(EXIT_FAILURE);
-    }
 
     const char *fragment_shader_source =
         "#version 330 core\n"
@@ -274,39 +265,10 @@ void renderer_ray_tracing_create(renderer_t *renderer)
         "uniform sampler2D u_texture;\n"
         "void main()\n"
         "{\n"
-        "   FragColor = texture(u_texture, tex_coord);\n"
+        "    FragColor = texture(u_texture, tex_coord);\n"
         "}";
 
-    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment_shader, 1, &fragment_shader_source, NULL);
-    glCompileShader(fragment_shader);
-
-    glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
-        GLchar infoLog[512];
-        glGetShaderInfoLog(fragment_shader, 512, NULL, infoLog);
-        fprintf(stderr, "Fragment shader compilation error: %s\n", infoLog);
-        exit(EXIT_FAILURE);
-    }
-
-    renderer_ray_tracing->shader_program = glCreateProgram();
-    glAttachShader(renderer_ray_tracing->shader_program, vertex_shader);
-    glAttachShader(renderer_ray_tracing->shader_program, fragment_shader);
-    glLinkProgram(renderer_ray_tracing->shader_program);
-
-    glGetProgramiv(renderer_ray_tracing->shader_program, GL_LINK_STATUS, &success);
-    if (!success)
-    {
-        GLchar infoLog[512];
-        glGetProgramInfoLog(renderer_ray_tracing->shader_program, 512, NULL, infoLog);
-        fprintf(stderr, "Shader program linking error: %s\n", infoLog);
-        exit(EXIT_FAILURE);
-    }
-
-    glDeleteShader(vertex_shader);
-    glDeleteShader(fragment_shader);
-
+    renderer_ray_tracing->shader_program = create_shader_program(vertex_shader_source, fragment_shader_source);
     glUseProgram(renderer_ray_tracing->shader_program);
     glUniform1i(glGetUniformLocation(renderer_ray_tracing->shader_program, "u_texture"), 0);
 
