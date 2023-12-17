@@ -4,8 +4,10 @@ project(puregl VERSION 1.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-if(NOT WIN32)
-    add_compile_options(-O2)
+if (WIN32)
+    set(CMAKE_C_FLAGS_RELEASE "/O2")
+else()
+    set(CMAKE_C_FLAGS_RELEASE "-O2")
 endif()
 
 option(GLFW_BUILD_DOCS OFF)
