@@ -17,19 +17,6 @@
 #define Z_NEAR 0.1f
 #define Z_FAR 100.0f
 
-float sdf(vec3 p, object_t *object)
-{
-    switch (object->type)
-    {
-    case OBJECT_TYPE_SPHERE:
-        return sdf_sphere(p, object->radius);
-    case OBJECT_TYPE_PLANE:
-        return sdf_plane(p, object->normal, 0.0f);
-    default:
-        return INFINITY;
-    }
-}
-
 void get_object_normal(object_t *object, vec3 p, vec3 normal_dst)
 {
     switch (object->type)
@@ -40,6 +27,62 @@ void get_object_normal(object_t *object, vec3 p, vec3 normal_dst)
         break;
     case OBJECT_TYPE_PLANE:
         glm_vec3_copy(object->normal, normal_dst);
+        break;
+    default:
+        break;
+    }
+}
+
+void intersects_sphere(vec3 ray_origin, vec3 ray_direction, vec3 sphere_position, float sphere_radius, float *t0_dst, float *t1_dst)
+{
+    vec3 ray_origin_model_space;
+    glm_vec3_sub(ray_origin, sphere_position, ray_origin_model_space);
+
+    float a = glm_vec3_norm2(ray_direction);
+    float b = 2.0f * glm_vec3_dot(ray_direction, ray_origin_model_space);
+    float c = glm_vec3_norm2(ray_origin_model_space) - sphere_radius * sphere_radius;
+
+    float discriminant = b * b - 4.0f * a * c;
+    if (discriminant < 0.0f)
+    {
+        *t0_dst = INFINITY;
+        *t1_dst = INFINITY;
+        return;
+    }
+
+    float sqrt_discriminant = sqrtf(discriminant);
+    float q = b < 0.0f ? -0.5f * (b - sqrt_discriminant) : -0.5f * (b + sqrt_discriminant);
+    *t0_dst = q / a;
+    *t1_dst = c / q;
+}
+
+void intersects_plane(vec3 ray_origin, vec3 ray_direction, vec3 plane_normal, float *t0_dst, float *t1_dst)
+{
+    float denominator = glm_vec3_dot(plane_normal, ray_direction);
+    if (fabsf(denominator) < 0.0001f)
+    {
+        *t0_dst = INFINITY;
+        *t1_dst = INFINITY;
+        return;
+    }
+
+    float t = -glm_vec3_dot(ray_origin, plane_normal) / denominator;
+    *t0_dst = t;
+    *t1_dst = t;
+}
+
+void intersects(vec3 ray_origin, vec3 ray_direction, object_t *object, float *t0_dst, float *t1_dst)
+{
+    vec3 ray_origin_model_space;
+
+    switch (object->type)
+    {
+    case OBJECT_TYPE_SPHERE:
+        intersects_sphere(ray_origin, ray_direction, object->position, object->radius, t0_dst, t1_dst);
+        break;
+    case OBJECT_TYPE_PLANE:
+        glm_vec3_sub(ray_origin, object->position, ray_origin_model_space);
+        intersects_plane(ray_origin_model_space, ray_direction, object->normal, t0_dst, t1_dst);
         break;
     default:
         break;
@@ -86,43 +129,45 @@ void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3
 
 hit_t cast_ray(vec3 origin, vec3 direction, scene_t *scene, float max_distance)
 {
-    float t = 0.0f;
-    for (int i = 0; i < 100; i++)
+    float t = max_distance;
+    object_t *hit_object = NULL;
+
+    for (int i = 0; i < scene->object_count; i++)
     {
-        if (t > max_distance)
+        object_t *object = &scene->objects[i];
+
+        float t0, t1;
+        intersects(origin, direction, object, &t0, &t1);
+
+        if (t0 > t1)
         {
-            break;
+            float tmp = t0;
+            t0 = t1;
+            t1 = tmp;
         }
 
+        if (t0 < 0.0f)
+        {
+            t0 = t1;
+            if (t0 < 0.0f)
+            {
+                continue;
+            }
+        }
+
+        if (t0 < t)
+        {
+            t = t0;
+            hit_object = object;
+        }
+    }
+
+    if (hit_object != NULL)
+    {
         vec3 ray_position;
         glm_vec3_scale(direction, t, ray_position);
         glm_vec3_add(origin, ray_position, ray_position);
-
-        if (ray_position[2] > Z_FAR)
-        {
-            break;
-        }
-
-        float min_distance = INFINITY;
-        for (int i = 0; i < scene->object_count; i++)
-        {
-            object_t *object = &scene->objects[i];
-
-            vec3 ray_position_model_space;
-            glm_vec3_sub(ray_position, object->position, ray_position_model_space);
-
-            float d = sdf(ray_position_model_space, object);
-            if (d < 0.001f)
-            {
-                return make_hit(object, ray_position);
-            }
-
-            if (d < min_distance)
-            {
-                min_distance = d;
-            }
-        }
-        t += min_distance;
+        return make_hit(hit_object, ray_position);
     }
 
     return (hit_t){.object = NULL};
@@ -144,12 +189,6 @@ void render_to_image(scene_t *scene, unsigned char *image)
     mat4 view_inv = {0.0f};
     glm_mat4_inv(view, view_inv);
 
-    scene_t scene_view_space;
-    scene_transform(scene, view, &scene_view_space);
-
-    vec3 camera_position_view_space;
-    glm_mat4_mulv3(view, camera_position_world_space, 1.0f, camera_position_view_space);
-
     for (int x = 0; x < width; x++)
     {
         for (int y = 0; y < height; y++)
@@ -160,21 +199,26 @@ void render_to_image(scene_t *scene, unsigned char *image)
             pixel_center_clip_space[3] = 1.0f;
             vec4 pixel_center_view_space;
             glm_mat4_mulv(projection_inv, pixel_center_clip_space, pixel_center_view_space);
-            perspective_division(pixel_center_view_space, pixel_center_view_space);
+            vec4 pixel_center_world_space;
+            glm_mat4_mulv(view_inv, pixel_center_view_space, pixel_center_world_space);
+            perspective_division(pixel_center_world_space, pixel_center_world_space);
 
             vec4 ray_direction_view_space;
             glm_vec4_copy(pixel_center_view_space, ray_direction_view_space);
             // Setting w to 0 prevents translation, so it behaves like a direction vector
             ray_direction_view_space[3] = 0.0f;
-            glm_vec4_normalize(ray_direction_view_space);
+
+            vec4 ray_direction_world_space;
+            glm_mat4_mulv(view_inv, ray_direction_view_space, ray_direction_world_space);
+            glm_vec4_normalize(ray_direction_world_space);
 
             vec3 color = {0.0f, 0.0f, 0.0f};
-            hit_t hit = cast_ray(pixel_center_view_space, ray_direction_view_space, &scene_view_space, INFINITY);
+            hit_t hit = cast_ray(pixel_center_world_space, ray_direction_world_space, scene, INFINITY);
             if (hit.object != NULL)
             {
-                for (int i = 0; i < scene_view_space.light_count; i++)
+                for (int i = 0; i < scene->light_count; i++)
                 {
-                    light_t *light = &scene_view_space.lights[i];
+                    light_t *light = &scene->lights[i];
 
                     vec3 direction_to_light;
                     glm_vec3_sub(light->position, hit.position, direction_to_light);
@@ -185,7 +229,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                     vec3 light_ray_origin;
                     glm_vec3_scale(direction_to_light, 0.01f, light_ray_origin);
                     glm_vec3_add(hit.position, light_ray_origin, light_ray_origin);
-                    hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, &scene_view_space, light_distance);
+                    hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
 
                     if (light_hit.object == NULL)
                     {
@@ -196,7 +240,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                         glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
 
                         vec3 camera_position_model_space;
-                        glm_vec3_sub(camera_position_view_space, *object_position, camera_position_model_space);
+                        glm_vec3_sub(camera_position_world_space, *object_position, camera_position_model_space);
 
                         vec3 normal;
                         get_object_normal(hit.object, hit_position_model_space, normal);
