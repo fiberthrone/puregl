@@ -27,6 +27,8 @@ typedef struct
     GLuint sphere_vao;
     GLuint sphere_vbo;
     GLuint sphere_ebo;
+    GLuint cube_vao;
+    GLuint cube_vbo;
 } renderer_rasterization_t;
 
 void put_sphere_vertex(float **vertices, float x, float y, float z)
@@ -111,6 +113,17 @@ void render_sphere(renderer_rasterization_t *renderer, object_t *object)
     glDrawElements(GL_TRIANGLE_STRIP, SPHERE_INDEX_COUNT, GL_UNSIGNED_INT, 0);
 }
 
+void render_cube(renderer_rasterization_t *renderer, object_t *object)
+{
+    mat4 model = GLM_MAT4_IDENTITY_INIT;
+    glm_translate(model, object->position);
+    glm_scale(model, object->size);
+    glUniformMatrix4fv(glGetUniformLocation(renderer->shader_program, "model"), 1, GL_FALSE, &model[0][0]);
+    glBindVertexArray(renderer->cube_vao);
+
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 24);
+}
+
 void render_plane(renderer_rasterization_t *renderer, object_t *object)
 {
     mat4 model = GLM_MAT4_IDENTITY_INIT;
@@ -135,6 +148,11 @@ void render_object(renderer_rasterization_t *renderer, object_t *object)
     case OBJECT_TYPE_SPHERE:
     {
         render_sphere(renderer, object);
+        break;
+    }
+    case OBJECT_TYPE_CUBE:
+    {
+        render_cube(renderer, object);
         break;
     }
     default:
@@ -209,7 +227,7 @@ void renderer_rasterization_create(renderer_t *renderer)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
-    ;
+
     static float sphere_vertices[SPHERE_VERTEX_COUNT * 6];
     static unsigned int sphere_indices[SPHERE_INDEX_COUNT];
     generate_sphere_vertices(SPHERE_SECTOR_COUNT, SPHERE_STACK_COUNT, sphere_vertices, sphere_indices);
@@ -222,6 +240,47 @@ void renderer_rasterization_create(renderer_t *renderer)
     glBufferData(GL_ARRAY_BUFFER, sizeof(sphere_vertices), sphere_vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer_rasterization->sphere_ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(sphere_indices), sphere_indices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    float cube_vertices[] = {
+        // left
+        -0.5f, 0.5f, 0.5f, -1.0f, 0.0f, 0.0f,
+        -0.5f, 0.5f, -0.5f, -1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, 0.5f, -1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f, 0.0f, 0.0f,
+        // bottom
+        -0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f,
+        -0.5f, -0.5f, 0.5f, 0.0f, -1.0f, 0.0f,
+        0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f,
+        0.5f, -0.5f, 0.5f, 0.0f, -1.0f, 0.0f,
+        // front
+        0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+        -0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+        0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+        -0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+        // top
+        -0.5f, 0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
+        0.5f, 0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
+        -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+        0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+        // right
+        0.5f, 0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
+        0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
+        0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
+        0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
+        // back
+        0.5f, 0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+        0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+        -0.5f, 0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+        -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f};
+    glGenVertexArrays(1, &renderer_rasterization->cube_vao);
+    glGenBuffers(1, &renderer_rasterization->cube_vbo);
+    glBindVertexArray(renderer_rasterization->cube_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer_rasterization->cube_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
@@ -275,5 +334,7 @@ void renderer_rasterization_destroy(renderer_t *renderer)
     glDeleteBuffers(1, &((renderer_rasterization_t *)renderer)->sphere_vbo);
     glDeleteBuffers(1, &((renderer_rasterization_t *)renderer)->sphere_ebo);
     glDeleteBuffers(1, &((renderer_rasterization_t *)renderer)->sphere_vao);
+    glDeleteBuffers(1, &((renderer_rasterization_t *)renderer)->cube_vbo);
+    glDeleteBuffers(1, &((renderer_rasterization_t *)renderer)->cube_vao);
     glDeleteProgram(((renderer_rasterization_t *)renderer)->shader_program);
 }

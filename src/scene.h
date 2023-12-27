@@ -8,6 +8,7 @@
 typedef enum
 {
     OBJECT_TYPE_SPHERE = 1,
+    OBJECT_TYPE_CUBE = 2,
     OBJECT_TYPE_PLANE = 0
 } object_type_t;
 
@@ -15,6 +16,7 @@ typedef struct
 {
     object_type_t type;
     vec3 position;
+    vec3 size;
     vec3 normal;
     float radius;
 } object_t;
@@ -47,6 +49,13 @@ void make_sphere(object_t *sphere, vec3 center, float radius)
     sphere->radius = radius;
 }
 
+void make_cube(object_t *cube, vec3 center, vec3 size)
+{
+    cube->type = OBJECT_TYPE_CUBE;
+    glm_vec3_copy(center, cube->position);
+    glm_vec3_copy(size, cube->size);
+}
+
 void make_plane(object_t *plane, vec3 position, vec3 normal)
 {
     plane->type = OBJECT_TYPE_PLANE;
@@ -59,6 +68,13 @@ void scene_add_sphere(scene_t *scene, vec3 center, float radius)
     object_t sphere;
     make_sphere(&sphere, center, radius);
     scene_add_object(scene, sphere);
+}
+
+void scene_add_cube(scene_t *scene, vec3 center, vec3 size)
+{
+    object_t cube;
+    make_cube(&cube, center, size);
+    scene_add_object(scene, cube);
 }
 
 void scene_add_plane(scene_t *scene, vec3 position, vec3 normal)

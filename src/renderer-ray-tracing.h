@@ -19,11 +19,29 @@
 
 void get_object_normal(object_t *object, vec3 p, vec3 normal_dst)
 {
+    vec3 p_normalized;
+
     switch (object->type)
     {
     case OBJECT_TYPE_SPHERE:
         glm_vec3_copy(p, normal_dst);
         glm_vec3_normalize(normal_dst);
+        break;
+    case OBJECT_TYPE_CUBE:
+        glm_vec3_copy(p, p_normalized);
+        glm_vec3_div(p_normalized, object->size, p_normalized);
+        if (fabs(p_normalized[0]) > fabs(p_normalized[1]) && fabs(p_normalized[0]) > fabs(p_normalized[2]))
+        {
+            glm_vec3_copy((vec3){glm_signf(p_normalized[0]), 0.0f, 0.0f}, normal_dst);
+        }
+        else if (fabs(p_normalized[1]) > fabs(p_normalized[2]))
+        {
+            glm_vec3_copy((vec3){0.0f, glm_signf(p_normalized[1]), 0.0f}, normal_dst);
+        }
+        else
+        {
+            glm_vec3_copy((vec3){0.0f, 0.0f, glm_signf(p_normalized[2])}, normal_dst);
+        }
         break;
     case OBJECT_TYPE_PLANE:
         glm_vec3_copy(object->normal, normal_dst);
@@ -71,6 +89,64 @@ void intersects_plane(vec3 ray_origin, vec3 ray_direction, vec3 plane_normal, fl
     *t1_dst = t;
 }
 
+void intersects_cube(vec3 ray_origin, vec3 ray_direction, vec3 cube_position, vec3 cube_size, float *t0_dst, float *t1_dst)
+{
+    float t_near = -INFINITY;
+    float t_far = INFINITY;
+
+    for (int i = 0; i < 3; i++)
+    {
+        if (ray_direction[i] == 0.0f)
+        {
+            if (ray_origin[i] < cube_position[i] - cube_size[i] / 2.0f || ray_origin[i] > cube_position[i] + cube_size[i] / 2.0f)
+            {
+                *t0_dst = INFINITY;
+                *t1_dst = INFINITY;
+                return;
+            }
+        }
+        else
+        {
+            float t1 = (cube_position[i] - cube_size[i] / 2.0f - ray_origin[i]) / ray_direction[i];
+            float t2 = (cube_position[i] + cube_size[i] / 2.0f - ray_origin[i]) / ray_direction[i];
+
+            if (t1 > t2)
+            {
+                float tmp = t1;
+                t1 = t2;
+                t2 = tmp;
+            }
+
+            if (t1 > t_near)
+            {
+                t_near = t1;
+            }
+
+            if (t2 < t_far)
+            {
+                t_far = t2;
+            }
+
+            if (t_near > t_far)
+            {
+                *t0_dst = INFINITY;
+                *t1_dst = INFINITY;
+                return;
+            }
+
+            if (t_far < 0.0f)
+            {
+                *t0_dst = INFINITY;
+                *t1_dst = INFINITY;
+                return;
+            }
+        }
+    }
+
+    *t0_dst = t_near;
+    *t1_dst = t_far;
+}
+
 void intersects(vec3 ray_origin, vec3 ray_direction, object_t *object, float *t0_dst, float *t1_dst)
 {
     vec3 ray_origin_model_space;
@@ -79,6 +155,10 @@ void intersects(vec3 ray_origin, vec3 ray_direction, object_t *object, float *t0
     {
     case OBJECT_TYPE_SPHERE:
         intersects_sphere(ray_origin, ray_direction, object->position, object->radius, t0_dst, t1_dst);
+        break;
+    case OBJECT_TYPE_CUBE:
+        glm_vec3_sub(ray_origin, object->position, ray_origin_model_space);
+        intersects_cube(ray_origin_model_space, ray_direction, (vec3){0.0f, 0.0f, 0.0f}, object->size, t0_dst, t1_dst);
         break;
     case OBJECT_TYPE_PLANE:
         glm_vec3_sub(ray_origin, object->position, ray_origin_model_space);
@@ -227,7 +307,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
 
                     // FIXME: is this good?
                     vec3 light_ray_origin;
-                    glm_vec3_scale(direction_to_light, 0.01f, light_ray_origin);
+                    glm_vec3_scale(direction_to_light, 0.0001f, light_ray_origin);
                     glm_vec3_add(hit.position, light_ray_origin, light_ray_origin);
                     hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
 
