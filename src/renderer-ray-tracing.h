@@ -9,7 +9,6 @@
 #define GLFW_INCLUDE_NONE
 #include <glad/glad.h>
 #include <cglm/cglm.h>
-#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -416,10 +415,7 @@ void renderer_ray_tracing_create(renderer_t *renderer)
 void renderer_ray_tracing_render(renderer_t *renderer, scene_t *scene)
 {
     unsigned char image[640 * 480 * 3];
-    clock_t start = clock();
     render_to_image(scene, image);
-    clock_t end = clock();
-    printf("Rendering time: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, ((renderer_ray_tracing_t *)renderer)->texture);

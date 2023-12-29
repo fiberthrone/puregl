@@ -137,12 +137,24 @@ int main()
 
     renderer_current->create(renderer_current);
 
+    double previousTime = glfwGetTime();
+    int frameCount = 0;
+
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
         renderer_current->render(renderer_current, &scene);
 
         glfwSwapBuffers(window);
+
+        double currentTime = glfwGetTime();
+        frameCount++;
+        if (currentTime - previousTime >= 1.0)
+        {
+            fprintf(stderr, "%d fps\n", frameCount);
+            frameCount = 0;
+            previousTime = currentTime;
+        }
 
         /* Poll for and process events */
         glfwPollEvents();
