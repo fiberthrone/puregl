@@ -181,7 +181,7 @@ hit_t make_hit(object_t *object, vec3 position)
     return hit;
 }
 
-void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3 camera_position, vec3 light_color, vec3 color_dst)
+void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3 camera_position, vec3 light_color, material_t material, vec3 color_dst)
 {
     vec3 light_direction;
     glm_vec3_sub(light_position, hit_position, light_direction);
@@ -189,7 +189,8 @@ void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3
 
     float diffuse_intensity = glm_max(glm_vec3_dot(normal, light_direction), 0.0f);
     vec3 diffuse;
-    glm_vec3_scale(light_color, 1.0f * diffuse_intensity, diffuse);
+    glm_vec3_scale(light_color, diffuse_intensity, diffuse);
+    glm_vec3_mul(diffuse, material.base_color, diffuse);
 
     vec3 view_direction;
     glm_vec3_sub(camera_position, hit_position, view_direction);
@@ -199,9 +200,9 @@ void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3
     glm_vec3_add(light_direction, view_direction, halfway_direction);
     glm_vec3_normalize(halfway_direction);
 
-    float specular_intensity = powf(glm_max(glm_vec3_dot(normal, halfway_direction), 0.0f), 128.0f);
+    float specular_intensity = powf(glm_max(glm_vec3_dot(normal, halfway_direction), 0.0f), material.shininess);
     vec3 specular;
-    glm_vec3_scale(light_color, 0.3f * specular_intensity, specular);
+    glm_vec3_scale(light_color, material.specular * specular_intensity, specular);
 
     glm_vec3_add(diffuse, specular, color_dst);
 }
@@ -333,6 +334,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                             light_position_model_space,
                             camera_position_model_space,
                             light->color,
+                            hit.object->material,
                             color_component);
 
                         glm_vec3_add(color, color_component, color);

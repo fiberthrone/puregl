@@ -17,38 +17,41 @@ void scene_init(scene_t *scene)
     scene_add_light(scene, (vec3){-5.0f, 5.0f, 0.0f}, (vec3){1.0f, 0.5f, 0.5f}, 1.0f);
     scene_add_light(scene, (vec3){5.0f, 5.0f, 0.0f}, (vec3){0.5f, 0.5f, 1.0f}, 1.0f);
 
-    scene_add_plane(scene, (vec3){0.0f, -1.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f});
+    material_t material_yellow = {.base_color = {1.0f, 1.0f, 0.0f}, .specular = 0.3f, .shininess = 128.0f};
+    material_t material_white = {.base_color = {1.0f, 1.0f, 1.0f}, .specular = 0.3f, .shininess = 128.0f};
 
-    scene_add_cube(scene, (vec3){0.5f, -0.7f, 2.0f}, (vec3){0.6f, 0.6f, 0.6f});
-    scene_add_cube(scene, (vec3){1.5f, -0.2f, 1.0f}, (vec3){0.8f, 1.6f, 0.8f});
+    scene_add_plane(scene, (vec3){0.0f, -1.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f}, material_yellow);
 
-    scene_add_sphere(scene, (vec3){-1.0f, -1.0, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-1.0f, -0.6, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-1.0f, -0.2, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-1.0f, 0.2, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-1.0f, 0.6, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-1.0f, 1.0, 0.5f}, 0.2f);
+    scene_add_cube(scene, (vec3){0.5f, -0.7f, 2.0f}, (vec3){0.6f, 0.6f, 0.6f}, material_white);
+    scene_add_cube(scene, (vec3){1.5f, -0.2f, 1.0f}, (vec3){0.8f, 1.6f, 0.8f}, material_white);
 
-    scene_add_sphere(scene, (vec3){-0.6f, -1.0, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.6f, -0.6, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.6f, -0.2, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.6f, 0.2, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.6f, 0.6, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.6f, 1.0, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-1.0f, -1.0, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-1.0f, -0.6, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-1.0f, -0.2, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-1.0f, 0.2, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-1.0f, 0.6, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-1.0f, 1.0, 0.5f}, 0.2f, material_white);
 
-    scene_add_sphere(scene, (vec3){-0.2f, -1.0, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, -0.6, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, -0.2, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, 0.2, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, 0.6, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, 1.0, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.6f, -1.0, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.6f, -0.6, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.6f, -0.2, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.6f, 0.2, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.6f, 0.6, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.6f, 1.0, 0.5f}, 0.2f, material_white);
 
-    scene_add_sphere(scene, (vec3){-0.2f, -1.0, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, -0.6, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, -0.2, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, 0.2, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, 0.6, 0.5f}, 0.2f);
-    scene_add_sphere(scene, (vec3){-0.2f, 1.0, 0.5f}, 0.2f);
+    scene_add_sphere(scene, (vec3){-0.2f, -1.0, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, -0.6, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, -0.2, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, 0.2, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, 0.6, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, 1.0, 0.5f}, 0.2f, material_white);
+
+    scene_add_sphere(scene, (vec3){-0.2f, -1.0, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, -0.6, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, -0.2, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, 0.2, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, 0.6, 0.5f}, 0.2f, material_white);
+    scene_add_sphere(scene, (vec3){-0.2f, 1.0, 0.5f}, 0.2f, material_white);
 }
 
 void error_callback(int error, const char *description)

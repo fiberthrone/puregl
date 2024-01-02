@@ -108,6 +108,9 @@ void render_sphere(renderer_rasterization_t *renderer, object_t *object)
     glm_translate(model, object->position);
     glm_scale(model, (vec3){object->radius, object->radius, object->radius});
     glUniformMatrix4fv(glGetUniformLocation(renderer->shader_program, "model"), 1, GL_FALSE, &model[0][0]);
+    glUniform3fv(glGetUniformLocation(renderer->shader_program, "material.base_color"), 1, &object->material.base_color[0]);
+    glUniform1f(glGetUniformLocation(renderer->shader_program, "material.specular"), object->material.specular);
+    glUniform1f(glGetUniformLocation(renderer->shader_program, "material.shininess"), object->material.shininess);
     glBindVertexArray(renderer->sphere_vao);
 
     glDrawElements(GL_TRIANGLE_STRIP, SPHERE_INDEX_COUNT, GL_UNSIGNED_INT, 0);
@@ -119,6 +122,9 @@ void render_cube(renderer_rasterization_t *renderer, object_t *object)
     glm_translate(model, object->position);
     glm_scale(model, object->size);
     glUniformMatrix4fv(glGetUniformLocation(renderer->shader_program, "model"), 1, GL_FALSE, &model[0][0]);
+    glUniform3fv(glGetUniformLocation(renderer->shader_program, "material.base_color"), 1, &object->material.base_color[0]);
+    glUniform1f(glGetUniformLocation(renderer->shader_program, "material.specular"), object->material.specular);
+    glUniform1f(glGetUniformLocation(renderer->shader_program, "material.shininess"), object->material.shininess);
     glBindVertexArray(renderer->cube_vao);
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 24);
@@ -131,6 +137,9 @@ void render_plane(renderer_rasterization_t *renderer, object_t *object)
     glm_translate(model, object->position);
     glm_scale(model, (vec3){100.0f, 100.0f, 100.0f});
     glUniformMatrix4fv(glGetUniformLocation(renderer->shader_program, "model"), 1, GL_FALSE, &model[0][0]);
+    glUniform3fv(glGetUniformLocation(renderer->shader_program, "material.base_color"), 1, &object->material.base_color[0]);
+    glUniform1f(glGetUniformLocation(renderer->shader_program, "material.specular"), object->material.specular);
+    glUniform1f(glGetUniformLocation(renderer->shader_program, "material.shininess"), object->material.shininess);
     glBindVertexArray(renderer->plane_vao);
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -188,11 +197,18 @@ void renderer_rasterization_create(renderer_t *renderer)
     const char *fragment_shader_source =
         "#version 330 core\n"
         "#define LIGHTS_COUNT " LIGHTS_COUNT_STR "\n"
+        "struct material_t\n"
+        "{\n"
+        "    vec3 base_color;\n"
+        "    float specular;\n"
+        "    float shininess;\n"
+        "};\n"
         "out vec4 FragColor;\n"
         "in vec3 normal;\n"
         "in vec3 position;\n"
         "uniform vec3 light_positions[LIGHTS_COUNT];\n"
         "uniform vec3 light_colors[LIGHTS_COUNT];\n"
+        "uniform material_t material;\n"
         "void main()\n"
         "{\n"
         "    FragColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
@@ -200,12 +216,12 @@ void renderer_rasterization_create(renderer_t *renderer)
         "    {\n"
         "        vec3 light_direction = normalize(light_positions[i] - position);\n"
         "        float diffuse_intensity = max(dot(normal, light_direction), 0.0);\n"
-        "        vec3 diffuse = diffuse_intensity * light_colors[i];\n"
+        "        vec3 diffuse = diffuse_intensity * material.base_color * light_colors[i];\n"
         "        vec3 view_direction = normalize(-position);\n"
         "        vec3 halfway_direction = normalize(light_direction + view_direction);\n"
-        "        float specular_intensity = pow(max(dot(normal, halfway_direction), 0.0), 128);\n"
+        "        float specular_intensity = pow(max(dot(normal, halfway_direction), 0.0), material.shininess);\n"
         "        vec3 specular = specular_intensity * light_colors[i];\n"
-        "        FragColor += vec4(diffuse + 0.3 * specular, 1.0);\n"
+        "        FragColor += vec4(diffuse + material.specular * specular, 1.0);\n"
         "    }\n"
         "}\n";
 
