@@ -256,6 +256,12 @@ hit_t cast_ray(vec3 origin, vec3 direction, scene_t *scene, float max_distance)
 void render_to_image(scene_t *scene, unsigned char *image)
 {
     int width = 640, height = 480;
+    static struct
+    {
+        int total_sample_count;
+        int hit_count;
+    } shadow_cache[640][480][MAX_LIGHT_COUNT] = {0};
+
     vec3 camera_position_world_space = {0.0f, 0.0f, -2.0f};
     mat4 projection;
     glm_perspective(45.0f, (float)width / (float)height, Z_NEAR, Z_FAR, projection);
@@ -300,45 +306,71 @@ void render_to_image(scene_t *scene, unsigned char *image)
                 {
                     light_t *light = &scene->lights[i];
 
-                    vec3 direction_to_light;
-                    glm_vec3_sub(light->position, hit.position, direction_to_light);
-                    float light_distance = glm_vec3_norm(direction_to_light);
-                    glm_vec3_normalize(direction_to_light);
+                    int total_sample_count = shadow_cache[x][y][i].total_sample_count;
+                    int light_hit_count = shadow_cache[x][y][i].hit_count;
 
-                    // FIXME: is this good?
-                    vec3 light_ray_origin;
-                    glm_vec3_scale(direction_to_light, 0.0001f, light_ray_origin);
-                    glm_vec3_add(hit.position, light_ray_origin, light_ray_origin);
-                    hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
-
-                    if (light_hit.object == NULL)
+                    int SAMPLES_TAKEN_PER_FRAME = 1;
+                    for (int j = 0; j < SAMPLES_TAKEN_PER_FRAME; j++)
                     {
-                        vec3 *object_position = &hit.object->position;
-                        vec3 *hit_position = &hit.position;
+                        vec3 light_sample_position;
+                        glm_vec3_copy(light->position, light_sample_position);
+                        vec3 offset = {
+                            (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
+                            (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
+                            (float)rand() / (float)RAND_MAX * 2.0f - 1.0f};
+                        glm_vec3_scale(offset, light->radius, offset);
+                        glm_vec3_add(light_sample_position, offset, light_sample_position);
 
-                        vec3 hit_position_model_space;
-                        glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
+                        vec3 direction_to_light;
+                        glm_vec3_sub(light_sample_position, hit.position, direction_to_light);
+                        float light_distance = glm_vec3_norm(direction_to_light);
+                        glm_vec3_normalize(direction_to_light);
 
-                        vec3 camera_position_model_space;
-                        glm_vec3_sub(camera_position_world_space, *object_position, camera_position_model_space);
+                        // FIXME: is this good?
+                        vec3 light_ray_origin;
+                        glm_vec3_scale(direction_to_light, 0.0001f, light_ray_origin);
+                        glm_vec3_add(hit.position, light_ray_origin, light_ray_origin);
+                        hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
 
-                        vec3 normal;
-                        get_object_normal(hit.object, hit_position_model_space, normal);
-
-                        vec3 light_position_model_space;
-                        glm_vec3_sub(light->position, *object_position, light_position_model_space);
-                        vec3 color_component;
-                        blinn_phong_shade(
-                            hit_position_model_space,
-                            normal,
-                            light_position_model_space,
-                            camera_position_model_space,
-                            light->color,
-                            hit.object->material,
-                            color_component);
-
-                        glm_vec3_add(color, color_component, color);
+                        total_sample_count = ++shadow_cache[x][y][i].total_sample_count;
+                        if (light_hit.object == NULL)
+                        {
+                            light_hit_count = ++shadow_cache[x][y][i].hit_count;
+                        }
                     }
+
+                    if (light_hit_count == 0)
+                    {
+                        continue;
+                    }
+
+                    vec3 *object_position = &hit.object->position;
+                    vec3 *hit_position = &hit.position;
+
+                    vec3 hit_position_model_space;
+                    glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
+
+                    vec3 camera_position_model_space;
+                    glm_vec3_sub(camera_position_world_space, *object_position, camera_position_model_space);
+
+                    vec3 normal;
+                    get_object_normal(hit.object, hit_position_model_space, normal);
+
+                    vec3 light_position_model_space;
+                    glm_vec3_sub(light->position, *object_position, light_position_model_space);
+
+                    vec3 light_contribution_color;
+                    blinn_phong_shade(
+                        hit_position_model_space,
+                        normal,
+                        light_position_model_space,
+                        camera_position_model_space,
+                        light->color,
+                        hit.object->material,
+                        light_contribution_color);
+
+                    glm_vec3_scale(light_contribution_color, (float)light_hit_count / total_sample_count, light_contribution_color);
+                    glm_vec3_add(color, light_contribution_color, color);
                 }
             }
             set_pixel(image, x, y, color);

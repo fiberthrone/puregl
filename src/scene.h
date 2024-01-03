@@ -34,6 +34,7 @@ typedef struct
     vec3 position;
     vec3 color;
     float intensity;
+    float radius;
 } light_t;
 
 typedef struct
@@ -98,12 +99,13 @@ void scene_add_plane(scene_t *scene, vec3 position, vec3 normal, material_t mate
     scene_add_object(scene, plane);
 }
 
-void scene_add_light(scene_t *scene, vec3 position, vec3 color, float intensity)
+void scene_add_light(scene_t *scene, vec3 position, vec3 color, float intensity, float radius)
 {
     light_t light;
     glm_vec3_copy(position, light.position);
     glm_vec3_copy(color, light.color);
     light.intensity = intensity;
+    light.radius = radius;
     scene->lights[scene->light_count] = light;
     scene->light_count++;
 }
