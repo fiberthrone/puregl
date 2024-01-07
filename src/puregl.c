@@ -45,13 +45,6 @@ void scene_init(scene_t *scene)
     scene_add_sphere(scene, (vec3){-0.2f, 0.2, 0.5f}, 0.2f, material_white);
     scene_add_sphere(scene, (vec3){-0.2f, 0.6, 0.5f}, 0.2f, material_white);
     scene_add_sphere(scene, (vec3){-0.2f, 1.0, 0.5f}, 0.2f, material_white);
-
-    scene_add_sphere(scene, (vec3){-0.2f, -1.0, 0.5f}, 0.2f, material_white);
-    scene_add_sphere(scene, (vec3){-0.2f, -0.6, 0.5f}, 0.2f, material_white);
-    scene_add_sphere(scene, (vec3){-0.2f, -0.2, 0.5f}, 0.2f, material_white);
-    scene_add_sphere(scene, (vec3){-0.2f, 0.2, 0.5f}, 0.2f, material_white);
-    scene_add_sphere(scene, (vec3){-0.2f, 0.6, 0.5f}, 0.2f, material_white);
-    scene_add_sphere(scene, (vec3){-0.2f, 1.0, 0.5f}, 0.2f, material_white);
 }
 
 void error_callback(int error, const char *description)
