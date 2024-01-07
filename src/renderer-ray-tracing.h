@@ -261,6 +261,11 @@ void render_to_image(scene_t *scene, unsigned char *image)
         int total_sample_count;
         int hit_count;
     } shadow_cache[640][480][MAX_LIGHT_COUNT] = {0};
+    static struct
+    {
+        int total_sample_count;
+        vec3 value;
+    } bounce_cache[640][480] = {0};
 
     vec3 camera_position_world_space = {0.0f, 0.0f, -2.0f};
     mat4 projection;
@@ -299,9 +304,22 @@ void render_to_image(scene_t *scene, unsigned char *image)
             glm_vec4_normalize(ray_direction_world_space);
 
             vec3 color = {0.0f, 0.0f, 0.0f};
+
             hit_t hit = cast_ray(pixel_center_world_space, ray_direction_world_space, scene, INFINITY);
             if (hit.object != NULL)
             {
+                vec3 *object_position = &hit.object->position;
+                vec3 *hit_position = &hit.position;
+
+                vec3 hit_position_model_space;
+                glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
+
+                vec3 camera_position_model_space;
+                glm_vec3_sub(camera_position_world_space, *object_position, camera_position_model_space);
+
+                vec3 normal;
+                get_object_normal(hit.object, hit_position_model_space, normal);
+
                 for (int i = 0; i < scene->light_count; i++)
                 {
                     light_t *light = &scene->lights[i];
@@ -372,6 +390,93 @@ void render_to_image(scene_t *scene, unsigned char *image)
                     glm_vec3_scale(light_contribution_color, (float)light_hit_count / total_sample_count, light_contribution_color);
                     glm_vec3_add(color, light_contribution_color, color);
                 }
+
+                int BOUNCE_SAMPLE_COUNT = 1;
+                vec3 bounce_contribution = {0};
+                for (int i = 0; i < BOUNCE_SAMPLE_COUNT; i++)
+                {
+                    vec3 random_direction = {
+                        (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
+                        (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
+                        (float)rand() / (float)RAND_MAX * 2.0f - 1.0f};
+                    glm_vec3_normalize(random_direction);
+                    vec3 bounce_ray_origin;
+                    glm_vec3_scale(random_direction, 0.0001f, bounce_ray_origin);
+                    glm_vec3_add(hit.position, bounce_ray_origin, bounce_ray_origin);
+                    hit_t bounce_hit = cast_ray(bounce_ray_origin, random_direction, scene, INFINITY);
+                    if (bounce_hit.object != NULL && bounce_hit.object != hit.object)
+                    {
+                        vec3 bounce_value_sample = {};
+                        for (int i = 0; i < scene->light_count; i++)
+                        {
+                            light_t *light = &scene->lights[i];
+
+                            vec3 direction_to_light;
+                            glm_vec3_sub(light->position, bounce_hit.position, direction_to_light);
+                            float light_distance = glm_vec3_norm(direction_to_light);
+                            glm_vec3_normalize(direction_to_light);
+
+                            // FIXME: is this good?
+                            vec3 light_ray_origin;
+                            glm_vec3_scale(direction_to_light, 0.0001f, light_ray_origin);
+                            glm_vec3_add(bounce_hit.position, light_ray_origin, light_ray_origin);
+                            hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
+
+                            if (light_hit.object == NULL)
+                            {
+                                vec3 *bounce_object_position = &bounce_hit.object->position;
+                                vec3 *bounce_hit_position = &bounce_hit.position;
+
+                                vec3 bounce_hit_position_bounce_model_space;
+                                glm_vec3_sub(*bounce_hit_position, *bounce_object_position, bounce_hit_position_bounce_model_space);
+
+                                vec3 camera_position_model_space;
+                                glm_vec3_sub(camera_position_world_space, *bounce_object_position, camera_position_model_space);
+
+                                vec3 bounce_normal;
+                                get_object_normal(bounce_hit.object, bounce_hit_position_bounce_model_space, bounce_normal);
+
+                                vec3 bounce_light_position_bounce_model_space;
+                                glm_vec3_sub(light->position, *bounce_object_position, bounce_light_position_bounce_model_space);
+
+                                vec3 hit_position_bounce_model_space;
+                                glm_vec3_sub(*hit_position, *bounce_object_position, hit_position_bounce_model_space);
+
+                                vec3 bounce_value_sample_light_contribution = {0};
+                                blinn_phong_shade(
+                                    bounce_hit_position_bounce_model_space,
+                                    bounce_normal,
+                                    bounce_light_position_bounce_model_space,
+                                    hit_position_bounce_model_space,
+                                    light->color,
+                                    bounce_hit.object->material,
+                                    bounce_value_sample_light_contribution);
+
+                                glm_vec3_add(bounce_value_sample, bounce_value_sample_light_contribution, bounce_value_sample);
+                            }
+                        }
+
+                        vec3 bounce_hit_position_model_space;
+                        glm_vec3_sub(bounce_hit.position, *object_position, bounce_hit_position_model_space);
+
+                        vec3 bounce_contribution_sample = {0};
+                        blinn_phong_shade(
+                            hit_position_model_space,
+                            normal,
+                            bounce_hit_position_model_space,
+                            camera_position_model_space,
+                            bounce_value_sample,
+                            hit.object->material,
+                            bounce_contribution_sample);
+
+                        glm_vec3_add(bounce_contribution, bounce_contribution_sample, bounce_contribution);
+                    }
+                }
+
+                glm_vec3_add(bounce_cache[x][y].value, bounce_contribution, bounce_cache[x][y].value);
+                bounce_cache[x][y].total_sample_count += BOUNCE_SAMPLE_COUNT;
+                glm_vec3_scale(bounce_cache[x][y].value, 1.0f / (float)bounce_cache[x][y].total_sample_count, bounce_contribution);
+                glm_vec3_add(color, bounce_contribution, color);
             }
             set_pixel(image, x, y, color);
         }
