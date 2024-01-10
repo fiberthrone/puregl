@@ -181,7 +181,7 @@ hit_t make_hit(object_t *object, vec3 position)
     return hit;
 }
 
-void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3 camera_position, vec3 light_color, material_t material, vec3 color_dst)
+void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3 camera_position, vec3 light_color, material_t *material, vec3 color_dst)
 {
     vec3 light_direction;
     glm_vec3_sub(light_position, hit_position, light_direction);
@@ -190,7 +190,7 @@ void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3
     float diffuse_intensity = glm_max(glm_vec3_dot(normal, light_direction), 0.0f);
     vec3 diffuse;
     glm_vec3_scale(light_color, diffuse_intensity, diffuse);
-    glm_vec3_mul(diffuse, material.base_color, diffuse);
+    glm_vec3_mul(diffuse, material->base_color, diffuse);
 
     vec3 view_direction;
     glm_vec3_sub(camera_position, hit_position, view_direction);
@@ -200,14 +200,14 @@ void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3
     glm_vec3_add(light_direction, view_direction, halfway_direction);
     glm_vec3_normalize(halfway_direction);
 
-    float specular_intensity = powf(glm_max(glm_vec3_dot(normal, halfway_direction), 0.0f), material.shininess);
+    float specular_intensity = powf(glm_max(glm_vec3_dot(normal, halfway_direction), 0.0f), material->shininess);
     vec3 specular;
-    glm_vec3_scale(light_color, material.specular * specular_intensity, specular);
+    glm_vec3_scale(light_color, material->specular * specular_intensity, specular);
 
     glm_vec3_add(diffuse, specular, color_dst);
 }
 
-hit_t cast_ray(vec3 origin, vec3 direction, scene_t *scene, float max_distance)
+void cast_ray(vec3 origin, vec3 direction, scene_t *scene, float max_distance, hit_t *hit_dst)
 {
     float t = max_distance;
     object_t *hit_object = NULL;
@@ -247,10 +247,14 @@ hit_t cast_ray(vec3 origin, vec3 direction, scene_t *scene, float max_distance)
         vec3 ray_position;
         glm_vec3_scale(direction, t, ray_position);
         glm_vec3_add(origin, ray_position, ray_position);
-        return make_hit(hit_object, ray_position);
-    }
 
-    return (hit_t){.object = NULL};
+        hit_dst->object = hit_object;
+        glm_vec3_copy(ray_position, hit_dst->position);
+    }
+    else
+    {
+        hit_dst->object = NULL;
+    }
 }
 
 void render_to_image(scene_t *scene, unsigned char *image)
@@ -305,7 +309,9 @@ void render_to_image(scene_t *scene, unsigned char *image)
 
             vec3 color = {0.0f, 0.0f, 0.0f};
 
-            hit_t hit = cast_ray(pixel_center_world_space, ray_direction_world_space, scene, INFINITY);
+            hit_t hit;
+            cast_ray(pixel_center_world_space, ray_direction_world_space, scene, INFINITY, &hit);
+
             if (hit.object != NULL)
             {
                 vec3 *object_position = &hit.object->position;
@@ -348,7 +354,8 @@ void render_to_image(scene_t *scene, unsigned char *image)
                         vec3 light_ray_origin;
                         glm_vec3_scale(direction_to_light, 0.0001f, light_ray_origin);
                         glm_vec3_add(hit.position, light_ray_origin, light_ray_origin);
-                        hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
+                        hit_t light_hit;
+                        cast_ray(light_ray_origin, direction_to_light, scene, light_distance, &light_hit);
 
                         total_sample_count = ++shadow_cache[x][y][i].total_sample_count;
                         if (light_hit.object == NULL)
@@ -384,7 +391,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                         light_position_model_space,
                         camera_position_model_space,
                         light->color,
-                        hit.object->material,
+                        &hit.object->material,
                         light_contribution_color);
 
                     glm_vec3_scale(light_contribution_color, (float)light_hit_count / total_sample_count, light_contribution_color);
@@ -403,7 +410,8 @@ void render_to_image(scene_t *scene, unsigned char *image)
                     vec3 bounce_ray_origin;
                     glm_vec3_scale(random_direction, 0.0001f, bounce_ray_origin);
                     glm_vec3_add(hit.position, bounce_ray_origin, bounce_ray_origin);
-                    hit_t bounce_hit = cast_ray(bounce_ray_origin, random_direction, scene, INFINITY);
+                    hit_t bounce_hit;
+                    cast_ray(bounce_ray_origin, random_direction, scene, INFINITY, &bounce_hit);
                     if (bounce_hit.object != NULL && bounce_hit.object != hit.object)
                     {
                         vec3 bounce_value_sample = {};
@@ -420,7 +428,9 @@ void render_to_image(scene_t *scene, unsigned char *image)
                             vec3 light_ray_origin;
                             glm_vec3_scale(direction_to_light, 0.0001f, light_ray_origin);
                             glm_vec3_add(bounce_hit.position, light_ray_origin, light_ray_origin);
-                            hit_t light_hit = cast_ray(light_ray_origin, direction_to_light, scene, light_distance);
+
+                            hit_t light_hit;
+                            cast_ray(light_ray_origin, direction_to_light, scene, light_distance, &light_hit);
 
                             if (light_hit.object == NULL)
                             {
@@ -449,7 +459,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                                     bounce_light_position_bounce_model_space,
                                     hit_position_bounce_model_space,
                                     light->color,
-                                    bounce_hit.object->material,
+                                    &bounce_hit.object->material,
                                     bounce_value_sample_light_contribution);
 
                                 glm_vec3_add(bounce_value_sample, bounce_value_sample_light_contribution, bounce_value_sample);
@@ -466,7 +476,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                             bounce_hit_position_model_space,
                             camera_position_model_space,
                             bounce_value_sample,
-                            hit.object->material,
+                            &hit.object->material,
                             bounce_contribution_sample);
 
                         glm_vec3_add(bounce_contribution, bounce_contribution_sample, bounce_contribution);
