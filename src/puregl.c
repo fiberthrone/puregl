@@ -14,6 +14,8 @@ void scene_init(scene_t *scene)
 {
     *scene = (scene_t){0};
 
+    scene_set_camera(scene, (vec3){0.0f, 0.0f, -2.0f}, (vec3){0.0f, 0.0f, 1.0f}, (vec3){0.0f, 1.0f, 0.0f});
+
     scene_add_light(scene, (vec3){-5.0f, 5.0f, 0.0f}, (vec3){1.0f, 0.5f, 0.5f}, 1.0f, 1.0f);
     scene_add_light(scene, (vec3){5.0f, 5.0f, 0.0f}, (vec3){0.5f, 0.5f, 1.0f}, 1.0f, 1.0f);
 
@@ -71,6 +73,11 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         return;
     }
 
+    scene_t *scene = (scene_t *)glfwGetWindowUserPointer(window);
+    camera_t *camera = &scene->camera;
+    vec3 direction;
+    vec3 new_camera_position;
+
     switch (key)
     {
     case GLFW_KEY_ESCAPE:
@@ -87,6 +94,30 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             renderer_current = (renderer_t *)&renderer_ray_tracing;
         }
         renderer_current->create(renderer_current);
+        break;
+    case GLFW_KEY_W:
+        glm_vec3_scale(camera->direction, 0.1f, direction);
+        glm_vec3_add(camera->position, direction, new_camera_position);
+        scene_set_camera(scene, new_camera_position, camera->direction, camera->up);
+        break;
+    case GLFW_KEY_S:
+        glm_vec3_scale(camera->direction, -0.1f, direction);
+        glm_vec3_add(camera->position, direction, new_camera_position);
+        scene_set_camera(scene, new_camera_position, camera->direction, camera->up);
+        break;
+    case GLFW_KEY_A:
+        glm_vec3_cross(camera->direction, camera->up, direction);
+        glm_vec3_normalize(direction);
+        glm_vec3_scale(direction, -0.1f, direction);
+        glm_vec3_add(camera->position, direction, new_camera_position);
+        scene_set_camera(scene, new_camera_position, camera->direction, camera->up);
+        break;
+    case GLFW_KEY_D:
+        glm_vec3_cross(camera->direction, camera->up, direction);
+        glm_vec3_normalize(direction);
+        glm_vec3_scale(direction, 0.1f, direction);
+        glm_vec3_add(camera->position, direction, new_camera_position);
+        scene_set_camera(scene, new_camera_position, camera->direction, camera->up);
         break;
     }
 }
@@ -130,6 +161,7 @@ int main()
 
     scene_t scene;
     scene_init(&scene);
+    glfwSetWindowUserPointer(window, &scene);
 
     renderer_current->create(renderer_current);
 

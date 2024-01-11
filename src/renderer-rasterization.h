@@ -312,11 +312,10 @@ void renderer_rasterization_render(renderer_t *renderer, scene_t *scene)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int width = 640, height = 480;
-    vec3 camera_position_world_space = {0.0f, 0.0f, -2.0f};
     mat4 projection;
     glm_perspective(45.0f, (float)width / (float)height, Z_NEAR, Z_FAR, projection);
     mat4 view;
-    glm_lookat(camera_position_world_space, (vec3){0.0f, 0.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f}, view);
+    glm_look(scene->camera.position, scene->camera.direction, scene->camera.up, view);
 
     vec3 light_positions_view_space[scene->light_count];
     for (int i = 0; i < scene->light_count; i++)

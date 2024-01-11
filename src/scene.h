@@ -5,6 +5,13 @@
 #define MAX_OBJECT_COUNT 512
 #define MAX_LIGHT_COUNT 512
 
+typedef struct
+{
+    vec3 position;
+    vec3 direction;
+    vec3 up;
+} camera_t;
+
 typedef enum
 {
     OBJECT_TYPE_SPHERE = 1,
@@ -43,6 +50,8 @@ typedef struct
     object_t objects[MAX_OBJECT_COUNT];
     int light_count;
     light_t lights[MAX_LIGHT_COUNT];
+    camera_t camera;
+    unsigned int id;
 } scene_t;
 
 void scene_add_object(scene_t *scene, object_t object)
@@ -108,6 +117,14 @@ void scene_add_light(scene_t *scene, vec3 position, vec3 color, float intensity,
     light.radius = radius;
     scene->lights[scene->light_count] = light;
     scene->light_count++;
+}
+
+void scene_set_camera(scene_t *scene, vec3 position, vec3 direction, vec3 up)
+{
+    glm_vec3_copy(position, scene->camera.position);
+    glm_vec3_copy(direction, scene->camera.direction);
+    glm_vec3_copy(up, scene->camera.up);
+    ++scene->id;
 }
 
 // TODO: Apply perspective division

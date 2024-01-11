@@ -11,6 +11,7 @@
 #include <cglm/cglm.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 #define Z_NEAR 0.1f
@@ -271,11 +272,19 @@ void render_to_image(scene_t *scene, unsigned char *image)
         vec3 value;
     } bounce_cache[640][480] = {0};
 
-    vec3 camera_position_world_space = {0.0f, 0.0f, -2.0f};
+    static unsigned int last_id = 0;
+    if (last_id != scene->id)
+    {
+        // Invalidate cache
+        memset(shadow_cache, 0, sizeof(shadow_cache));
+        memset(bounce_cache, 0, sizeof(bounce_cache));
+        last_id = scene->id;
+    }
+
     mat4 projection;
     glm_perspective(45.0f, (float)width / (float)height, Z_NEAR, Z_FAR, projection);
     mat4 view;
-    glm_lookat(camera_position_world_space, (vec3){0.0f, 0.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f}, view);
+    glm_look(scene->camera.position, scene->camera.direction, scene->camera.up, view);
     mat4 projection_view;
     glm_mat4_mul(projection, view, projection_view);
 
@@ -320,8 +329,9 @@ void render_to_image(scene_t *scene, unsigned char *image)
                 vec3 hit_position_model_space;
                 glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
 
+                vec3 *camera_position_world_space = &scene->camera.position;
                 vec3 camera_position_model_space;
-                glm_vec3_sub(camera_position_world_space, *object_position, camera_position_model_space);
+                glm_vec3_sub(*camera_position_world_space, *object_position, camera_position_model_space);
 
                 vec3 normal;
                 get_object_normal(hit.object, hit_position_model_space, normal);
@@ -376,7 +386,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                     glm_vec3_sub(*hit_position, *object_position, hit_position_model_space);
 
                     vec3 camera_position_model_space;
-                    glm_vec3_sub(camera_position_world_space, *object_position, camera_position_model_space);
+                    glm_vec3_sub(*camera_position_world_space, *object_position, camera_position_model_space);
 
                     vec3 normal;
                     get_object_normal(hit.object, hit_position_model_space, normal);
@@ -441,7 +451,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                                 glm_vec3_sub(*bounce_hit_position, *bounce_object_position, bounce_hit_position_bounce_model_space);
 
                                 vec3 camera_position_model_space;
-                                glm_vec3_sub(camera_position_world_space, *bounce_object_position, camera_position_model_space);
+                                glm_vec3_sub(*camera_position_world_space, *bounce_object_position, camera_position_model_space);
 
                                 vec3 bounce_normal;
                                 get_object_normal(bounce_hit.object, bounce_hit_position_bounce_model_space, bounce_normal);
