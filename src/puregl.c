@@ -1,6 +1,7 @@
 #include "renderer-ray-tracing.h"
 #include "renderer-rasterization.h"
 #include "scene.h"
+#include "camera.h"
 
 #define GLFW_INCLUDE_NONE
 #include <glad/glad.h>
@@ -10,11 +11,29 @@
 #include <stdlib.h>
 #include <math.h>
 
+typedef struct
+{
+    bool dragging;
+    vec2 drag_start_position;
+    camera_t drag_start_camera;
+} ui_state_t;
+
+typedef struct
+{
+    scene_t *scene;
+    ui_state_t *ui_state;
+} window_context_t;
+
 void scene_init(scene_t *scene)
 {
     *scene = (scene_t){0};
 
-    scene_set_camera(scene, (vec3){0.0f, 0.0f, -2.0f}, (vec3){0.0f, 0.0f, 1.0f}, (vec3){0.0f, 1.0f, 0.0f});
+    camera_t camera = {
+        .position = {0.0f, 0.0f, -2.0f},
+        .direction = {0.0f, 0.0f, 1.0f},
+        .up = {0.0f, 1.0f, 0.0f},
+        .target = {0.0f, 0.0f, 0.0f}};
+    scene_set_camera(scene, &camera);
 
     scene_add_light(scene, (vec3){-5.0f, 5.0f, 0.0f}, (vec3){1.0f, 0.5f, 0.5f}, 1.0f, 1.0f);
     scene_add_light(scene, (vec3){5.0f, 5.0f, 0.0f}, (vec3){0.5f, 0.5f, 1.0f}, 1.0f, 1.0f);
@@ -73,10 +92,10 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         return;
     }
 
-    scene_t *scene = (scene_t *)glfwGetWindowUserPointer(window);
+    window_context_t *window_context = (window_context_t *)glfwGetWindowUserPointer(window);
+    scene_t *scene = window_context->scene;
     camera_t *camera = &scene->camera;
-    vec3 direction;
-    vec3 new_camera_position;
+    camera_t new_camera;
 
     switch (key)
     {
@@ -96,29 +115,66 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         renderer_current->create(renderer_current);
         break;
     case GLFW_KEY_W:
-        glm_vec3_scale(camera->direction, 0.1f, direction);
-        glm_vec3_add(camera->position, direction, new_camera_position);
-        scene_set_camera(scene, new_camera_position, camera->direction, camera->up);
+        camera_move_forwards(camera, 0.1f, &new_camera);
+        scene_set_camera(scene, &new_camera);
         break;
     case GLFW_KEY_S:
-        glm_vec3_scale(camera->direction, -0.1f, direction);
-        glm_vec3_add(camera->position, direction, new_camera_position);
-        scene_set_camera(scene, new_camera_position, camera->direction, camera->up);
+        camera_move_backwards(camera, 0.1f, &new_camera);
+        scene_set_camera(scene, &new_camera);
         break;
     case GLFW_KEY_A:
-        glm_vec3_cross(camera->direction, camera->up, direction);
-        glm_vec3_normalize(direction);
-        glm_vec3_scale(direction, -0.1f, direction);
-        glm_vec3_add(camera->position, direction, new_camera_position);
-        scene_set_camera(scene, new_camera_position, camera->direction, camera->up);
+        camera_move_left(camera, 0.1f, &new_camera);
+        scene_set_camera(scene, &new_camera);
         break;
     case GLFW_KEY_D:
-        glm_vec3_cross(camera->direction, camera->up, direction);
-        glm_vec3_normalize(direction);
-        glm_vec3_scale(direction, 0.1f, direction);
-        glm_vec3_add(camera->position, direction, new_camera_position);
-        scene_set_camera(scene, new_camera_position, camera->direction, camera->up);
+        camera_move_right(camera, 0.1f, &new_camera);
+        scene_set_camera(scene, &new_camera);
         break;
+    }
+}
+
+void mouse_move_callback(GLFWwindow *window, double xpos, double ypos)
+{
+    window_context_t *window_context = (window_context_t *)glfwGetWindowUserPointer(window);
+    scene_t *scene = window_context->scene;
+    ui_state_t *ui_state = window_context->ui_state;
+    camera_t new_camera;
+
+    if (!ui_state->dragging)
+    {
+        return;
+    }
+
+    float delta_theta = (xpos - ui_state->drag_start_position[0]) / 100.0f;
+    float delta_phi = (ypos - ui_state->drag_start_position[1]) / 100.0f;
+    camera_rotate(&ui_state->drag_start_camera, delta_theta, delta_phi, &new_camera);
+    scene_set_camera(scene, &new_camera);
+}
+
+void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
+{
+    window_context_t *window_context = (window_context_t *)glfwGetWindowUserPointer(window);
+    scene_t *scene = window_context->scene;
+    ui_state_t *ui_state = window_context->ui_state;
+
+    if (button != GLFW_MOUSE_BUTTON_LEFT)
+    {
+        return;
+    }
+
+    if (action == GLFW_PRESS)
+    {
+        double xpos, ypos;
+        glfwGetCursorPos(window, &xpos, &ypos);
+
+        ui_state->dragging = true;
+        ui_state->drag_start_camera = scene->camera;
+        vec2 mouse_pos = {xpos, ypos};
+        glm_vec2_copy(mouse_pos, ui_state->drag_start_position);
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        ui_state->dragging = false;
     }
 }
 
@@ -149,6 +205,8 @@ int main()
     }
 
     glfwSetKeyCallback(window, key_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetCursorPosCallback(window, mouse_move_callback);
 
     glfwMakeContextCurrent(window);
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
@@ -160,8 +218,11 @@ int main()
     glViewport(0, 0, window_width, window_height);
 
     scene_t scene;
+    ui_state_t ui_state = {0};
+    window_context_t window_context = {.scene = &scene, .ui_state = &ui_state};
     scene_init(&scene);
-    glfwSetWindowUserPointer(window, &scene);
+
+    glfwSetWindowUserPointer(window, &window_context);
 
     renderer_current->create(renderer_current);
 

@@ -1,16 +1,10 @@
 #pragma once
 
+#include "camera.h"
 #include <cglm/cglm.h>
 
 #define MAX_OBJECT_COUNT 512
 #define MAX_LIGHT_COUNT 512
-
-typedef struct
-{
-    vec3 position;
-    vec3 direction;
-    vec3 up;
-} camera_t;
 
 typedef enum
 {
@@ -119,11 +113,9 @@ void scene_add_light(scene_t *scene, vec3 position, vec3 color, float intensity,
     scene->light_count++;
 }
 
-void scene_set_camera(scene_t *scene, vec3 position, vec3 direction, vec3 up)
+void scene_set_camera(scene_t *scene, camera_t *camera)
 {
-    glm_vec3_copy(position, scene->camera.position);
-    glm_vec3_copy(direction, scene->camera.direction);
-    glm_vec3_copy(up, scene->camera.up);
+    scene->camera = *camera;
     ++scene->id;
 }
 
