@@ -127,7 +127,7 @@ void render_cube(renderer_rasterization_t *renderer, object_t *object)
     glUniform1f(glGetUniformLocation(renderer->shader_program, "material.shininess"), object->material.shininess);
     glBindVertexArray(renderer->cube_vao);
 
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 24);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 26);
 }
 
 void render_plane(renderer_rasterization_t *renderer, object_t *object)
@@ -284,10 +284,12 @@ void renderer_rasterization_create(renderer_t *renderer)
         0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
         // right
         0.5f, 0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
-        0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
         0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
+        0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
+        0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
         0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
         // back
+        0.5f, 0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
         0.5f, 0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
         0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
         -0.5f, 0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
