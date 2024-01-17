@@ -29,6 +29,7 @@ typedef struct
     GLuint sphere_ebo;
     GLuint cube_vao;
     GLuint cube_vbo;
+    GLuint ubo_lights;
 } renderer_rasterization_t;
 
 void put_sphere_vertex(float **vertices, float x, float y, float z)
@@ -203,24 +204,31 @@ void renderer_rasterization_create(renderer_t *renderer)
         "    float specular;\n"
         "    float shininess;\n"
         "};\n"
+        "struct light_t\n"
+        "{\n"
+        "    vec3 position;\n"
+        "    vec3 color;\n"
+        "};\n"
         "out vec4 FragColor;\n"
         "in vec3 normal;\n"
         "in vec3 position;\n"
-        "uniform vec3 light_positions[LIGHTS_COUNT];\n"
-        "uniform vec3 light_colors[LIGHTS_COUNT];\n"
+        "layout (std140) uniform ub_lights\n"
+        "{\n"
+        "    light_t lights[LIGHTS_COUNT];\n"
+        "};\n"
         "uniform material_t material;\n"
         "void main()\n"
         "{\n"
         "    FragColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
         "    for (int i = 0; i < LIGHTS_COUNT; i++)\n"
         "    {\n"
-        "        vec3 light_direction = normalize(light_positions[i] - position);\n"
+        "        vec3 light_direction = normalize(lights[i].position - position);\n"
         "        float diffuse_intensity = max(dot(normal, light_direction), 0.0);\n"
-        "        vec3 diffuse = diffuse_intensity * material.base_color * light_colors[i];\n"
+        "        vec3 diffuse = diffuse_intensity * material.base_color * lights[i].color;\n"
         "        vec3 view_direction = normalize(-position);\n"
         "        vec3 halfway_direction = normalize(light_direction + view_direction);\n"
         "        float specular_intensity = pow(max(dot(normal, halfway_direction), 0.0), material.shininess);\n"
-        "        vec3 specular = specular_intensity * light_colors[i];\n"
+        "        vec3 specular = specular_intensity * lights[i].color;\n"
         "        FragColor += vec4(diffuse + material.specular * specular, 1.0);\n"
         "    }\n"
         "}\n";
@@ -303,6 +311,13 @@ void renderer_rasterization_create(renderer_t *renderer)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
+
+    unsigned int uniform_block_index = glGetUniformBlockIndex(renderer_rasterization->shader_program, "ub_lights");
+    glUniformBlockBinding(renderer_rasterization->shader_program, uniform_block_index, 0);
+    glGenBuffers(1, &renderer_rasterization->ubo_lights);
+    glBindBuffer(GL_UNIFORM_BUFFER, renderer_rasterization->ubo_lights);
+    glBufferData(GL_UNIFORM_BUFFER, 32 * LIGHTS_COUNT, NULL, GL_STATIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, renderer_rasterization->ubo_lights);
 }
 
 void renderer_rasterization_render(renderer_t *renderer, scene_t *scene)
@@ -319,24 +334,18 @@ void renderer_rasterization_render(renderer_t *renderer, scene_t *scene)
     mat4 view;
     glm_look(scene->camera.position, scene->camera.direction, scene->camera.up, view);
 
-    vec3 light_positions_view_space[scene->light_count];
-    for (int i = 0; i < scene->light_count; i++)
-    {
-        glm_mat4_mulv3(view, (vec4){scene->lights[i].position[0], scene->lights[i].position[1], scene->lights[i].position[2], 1.0f}, 1.0f, light_positions_view_space[i]);
-    }
-    vec3 light_colors[scene->light_count];
-    for (int i = 0; i < scene->light_count; i++)
-    {
-        light_colors[i][0] = scene->lights[i].color[0];
-        light_colors[i][1] = scene->lights[i].color[1];
-        light_colors[i][2] = scene->lights[i].color[2];
-    }
-
     glUseProgram(renderer_rasterization->shader_program);
     glUniformMatrix4fv(glGetUniformLocation(renderer_rasterization->shader_program, "projection"), 1, GL_FALSE, &projection[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(renderer_rasterization->shader_program, "view"), 1, GL_FALSE, &view[0][0]);
-    glUniform3fv(glGetUniformLocation(renderer_rasterization->shader_program, "light_positions"), 2, &light_positions_view_space[0][0]);
-    glUniform3fv(glGetUniformLocation(renderer_rasterization->shader_program, "light_colors"), 2, &light_colors[0][0]);
+
+    glBindBuffer(GL_UNIFORM_BUFFER, renderer_rasterization->ubo_lights);
+    for (int i = 0; i < scene->light_count; i++)
+    {
+        light_t light_view_space = scene->lights[i];
+        glm_mat4_mulv3(view, light_view_space.position, 1.0f, light_view_space.position);
+        glBufferSubData(GL_UNIFORM_BUFFER, i * 32, sizeof(light_view_space.position), &light_view_space.position[0]);
+        glBufferSubData(GL_UNIFORM_BUFFER, i * 32 + 16, sizeof(light_view_space.color), &light_view_space.color[0]);
+    }
 
     for (int i = 0; i < scene->object_count; i++)
     {
