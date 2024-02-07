@@ -182,11 +182,18 @@ hit_t make_hit(object_t *object, vec3 position)
     return hit;
 }
 
-void blinn_phong_shade(vec3 hit_position, vec3 normal, vec3 light_position, vec3 camera_position, vec3 light_color, material_t *material, vec3 color_dst)
+void blinn_phong_shade(vec3 hit_position, vec3 normal, vec4 light_position, vec3 camera_position, vec3 light_color, material_t *material, vec3 color_dst)
 {
     vec3 light_direction;
-    glm_vec3_sub(light_position, hit_position, light_direction);
-    glm_vec3_normalize(light_direction);
+    if (light_position[3] == 0.0f)
+    {
+        glm_vec3_copy(light_position, light_direction);
+    }
+    else
+    {
+        glm_vec3_sub(light_position, hit_position, light_direction);
+        glm_vec3_normalize(light_direction);
+    }
 
     float diffuse_intensity = glm_max(glm_vec3_dot(normal, light_direction), 0.0f);
     vec3 diffuse;
@@ -346,19 +353,35 @@ void render_to_image(scene_t *scene, unsigned char *image)
                     int SAMPLES_TAKEN_PER_FRAME = 1;
                     for (int j = 0; j < SAMPLES_TAKEN_PER_FRAME; j++)
                     {
-                        vec3 light_sample_position;
-                        glm_vec3_copy(light->position, light_sample_position);
-                        vec3 offset = {
-                            (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
-                            (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
-                            (float)rand() / (float)RAND_MAX * 2.0f - 1.0f};
-                        glm_vec3_scale(offset, light->radius, offset);
-                        glm_vec3_add(light_sample_position, offset, light_sample_position);
-
                         vec3 direction_to_light;
-                        glm_vec3_sub(light_sample_position, hit.position, direction_to_light);
-                        float light_distance = glm_vec3_norm(direction_to_light);
-                        glm_vec3_normalize(direction_to_light);
+                        float light_distance;
+                        if (light->position[3] == 0.0f)
+                        {
+                            glm_vec3_copy(light->position, direction_to_light);
+                            vec3 offset = {
+                                (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
+                                (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
+                                (float)rand() / (float)RAND_MAX * 2.0f - 1.0f};
+                            glm_vec3_scale(offset, light->angular_radius, offset);
+                            glm_vec3_add(direction_to_light, offset, direction_to_light);
+                            glm_vec3_normalize(direction_to_light);
+                            light_distance = INFINITY;
+                        }
+                        else
+                        {
+                            vec3 light_sample_position;
+                            glm_vec3_copy(light->position, light_sample_position);
+                            vec3 offset = {
+                                (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
+                                (float)rand() / (float)RAND_MAX * 2.0f - 1.0f,
+                                (float)rand() / (float)RAND_MAX * 2.0f - 1.0f};
+                            glm_vec3_scale(offset, light->radius, offset);
+                            glm_vec3_add(light_sample_position, offset, light_sample_position);
+
+                            glm_vec3_sub(light_sample_position, hit.position, direction_to_light);
+                            light_distance = glm_vec3_norm(direction_to_light);
+                            glm_vec3_normalize(direction_to_light);
+                        }
 
                         // FIXME: is this good?
                         vec3 light_ray_origin;
@@ -391,8 +414,12 @@ void render_to_image(scene_t *scene, unsigned char *image)
                     vec3 normal;
                     get_object_normal(hit.object, hit_position_model_space, normal);
 
-                    vec3 light_position_model_space;
-                    glm_vec3_sub(light->position, *object_position, light_position_model_space);
+                    vec4 light_position_model_space;
+                    glm_vec4_copy(light->position, light_position_model_space);
+                    if (light_position_model_space[3] == 1.0f)
+                    {
+                        glm_vec4_sub(light_position_model_space, (vec4){*object_position[0], *object_position[1], *object_position[2], 0.0f}, light_position_model_space);
+                    }
 
                     vec3 light_contribution_color;
                     blinn_phong_shade(
@@ -456,8 +483,12 @@ void render_to_image(scene_t *scene, unsigned char *image)
                                 vec3 bounce_normal;
                                 get_object_normal(bounce_hit.object, bounce_hit_position_bounce_model_space, bounce_normal);
 
-                                vec3 bounce_light_position_bounce_model_space;
-                                glm_vec3_sub(light->position, *bounce_object_position, bounce_light_position_bounce_model_space);
+                                vec4 bounce_light_position_bounce_model_space;
+                                glm_vec4_copy(light->position, bounce_light_position_bounce_model_space);
+                                if (bounce_light_position_bounce_model_space[3] == 1.0f)
+                                {
+                                    glm_vec4_sub(bounce_light_position_bounce_model_space, (vec4){*bounce_object_position[0], *bounce_object_position[1], *bounce_object_position[2], 0.0f}, bounce_light_position_bounce_model_space);
+                                }
 
                                 vec3 hit_position_bounce_model_space;
                                 glm_vec3_sub(*hit_position, *bounce_object_position, hit_position_bounce_model_space);
@@ -476,7 +507,7 @@ void render_to_image(scene_t *scene, unsigned char *image)
                             }
                         }
 
-                        vec3 bounce_hit_position_model_space;
+                        vec4 bounce_hit_position_model_space = {0.0f, 0.0f, 0.0f, 1.0f};
                         glm_vec3_sub(bounce_hit.position, *object_position, bounce_hit_position_model_space);
 
                         vec3 bounce_contribution_sample = {0};

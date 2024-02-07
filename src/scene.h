@@ -32,10 +32,14 @@ typedef struct
 
 typedef struct
 {
-    vec3 position;
+    vec4 position; // w = 0.0 for directional light, w = 1.0 for point light
     vec3 color;
     float intensity;
-    float radius;
+    union
+    {
+        float radius;         // for point light
+        float angular_radius; // for directional light
+    };
 } light_t;
 
 typedef struct
@@ -102,13 +106,24 @@ void scene_add_plane(scene_t *scene, vec3 position, vec3 normal, material_t mate
     scene_add_object(scene, plane);
 }
 
-void scene_add_light(scene_t *scene, vec3 position, vec3 color, float intensity, float radius)
+void scene_add_point_light(scene_t *scene, vec3 position, vec3 color, float intensity, float radius)
 {
-    light_t light;
-    glm_vec3_copy(position, light.position);
+    light_t light = {0};
+    glm_vec4_copy((vec4){position[0], position[1], position[2], 1.0f}, light.position);
     glm_vec3_copy(color, light.color);
     light.intensity = intensity;
     light.radius = radius;
+    scene->lights[scene->light_count] = light;
+    scene->light_count++;
+}
+
+void scene_add_directional_light(scene_t *scene, vec3 direction, vec3 color, float intensity, float angular_radius)
+{
+    light_t light = {0};
+    glm_vec4_copy((vec4){direction[0], direction[1], direction[2], 0.0f}, light.position);
+    glm_vec3_copy(color, light.color);
+    light.intensity = intensity;
+    light.angular_radius = angular_radius;
     scene->lights[scene->light_count] = light;
     scene->light_count++;
 }

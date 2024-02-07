@@ -35,8 +35,9 @@ void scene_init(scene_t *scene)
         .target = {0.0f, 0.0f, 0.0f}};
     scene_set_camera(scene, &camera);
 
-    scene_add_light(scene, (vec3){-5.0f, 5.0f, 0.0f}, (vec3){1.0f, 0.5f, 0.5f}, 1.0f, 1.0f);
-    scene_add_light(scene, (vec3){5.0f, 5.0f, 0.0f}, (vec3){0.5f, 0.5f, 1.0f}, 1.0f, 1.0f);
+    scene_add_point_light(scene, (vec3){-5.0f, 5.0f, 0.0f}, (vec3){1.0f, 0.5f, 0.5f}, 1.0f, 1.0f);
+    scene_add_point_light(scene, (vec3){5.0f, 5.0f, 0.0f}, (vec3){0.5f, 0.5f, 1.0f}, 1.0f, 1.0f);
+    scene_add_directional_light(scene, (vec3){0.0f, 1.0f / sqrt(2.0f), 1.0f / sqrt(2.0f)}, (vec3){0.5f, 0.25f, 0.25f}, 1.0f, 0.5f / 180.0f * M_PI);
 
     material_t material_yellow = {.base_color = {1.0f, 1.0f, 0.0f}, .specular = 0.3f, .shininess = 128.0f};
     material_t material_white = {.base_color = {1.0f, 1.0f, 1.0f}, .specular = 0.3f, .shininess = 128.0f};

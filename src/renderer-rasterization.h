@@ -2,7 +2,7 @@
 
 #define Q(x) #x
 #define QUOTE(x) Q(x)
-#define LIGHTS_COUNT 2
+#define LIGHTS_COUNT 3
 #define LIGHTS_COUNT_STR QUOTE(LIGHTS_COUNT)
 
 #include "renderer.h"
@@ -206,7 +206,7 @@ void renderer_rasterization_create(renderer_t *renderer)
         "};\n"
         "struct light_t\n"
         "{\n"
-        "    vec3 position;\n"
+        "    vec4 position;\n"
         "    vec3 color;\n"
         "};\n"
         "out vec4 FragColor;\n"
@@ -222,7 +222,7 @@ void renderer_rasterization_create(renderer_t *renderer)
         "    FragColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
         "    for (int i = 0; i < LIGHTS_COUNT; i++)\n"
         "    {\n"
-        "        vec3 light_direction = normalize(lights[i].position - position);\n"
+        "        vec3 light_direction = lights[i].position.w == 0.0 ? lights[i].position.xyz : normalize(lights[i].position.xyz - position);\n"
         "        float diffuse_intensity = max(dot(normal, light_direction), 0.0);\n"
         "        vec3 diffuse = diffuse_intensity * material.base_color * lights[i].color;\n"
         "        vec3 view_direction = normalize(-position);\n"
